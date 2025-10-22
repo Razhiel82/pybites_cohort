@@ -1,12 +1,7 @@
-import os
-
-from dotenv import load_dotenv
+from decouple import config
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-# SQLITE_FILE_NAME = os.getenv("SQLITE_FILE_NAME")
+DATABASE_URL = config("DATABASE_URL")
 
 engine = create_engine(DATABASE_URL, echo=True)
 
@@ -19,11 +14,11 @@ class Item(SQLModel, table=True):
 
 SQLModel.metadata.create_all(engine)
 
-# with Session(engine) as session:
-#     item = Item(name="Laptop", price=999.99)
-#     session.add(item)
-#     session.commit()
-#     session.refresh(item)
+with Session(engine) as session:
+    item = Item(name="Laptop", price=999.99)
+    session.add(item)
+    session.commit()
+    session.refresh(item)
 
 with Session(engine) as session:
     item = session.exec(select(Item)).all
