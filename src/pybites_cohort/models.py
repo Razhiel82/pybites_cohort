@@ -6,39 +6,43 @@ DATABASE_URL = config("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True)
 
 
-class Item(SQLModel, table=True):
+class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str
-    price: float
+    title: str
+    code: str
+
+    @classmethod
+    def create(cls, **kwargs):
+        snippet = cls(**kwargs)
+        return snippet
 
 
 SQLModel.metadata.create_all(engine)
 
 with Session(engine) as session:
-    item = Item(name="Laptop", price=999.99)
-    session.add(item)
+    snippet = Snippet(title="snippet 1", code="print('Snippet 1')")
+    session.add(snippet)
     session.commit()
-    session.refresh(item)
+    session.refresh(snippet)
 
 with Session(engine) as session:
-    item = session.exec(select(Item)).all
+    snippet = session.exec(select(Snippet)).all
 
 with Session(engine) as session:
-    item = session.get(Item, 1)
+    snippet = session.get(Snippet, 1)
 
 with Session(engine) as session:
-    item = session.exec(select(Item).where(Item.name == "Laptop")).first()
+    snippet = session.exec(select(Snippet).where(Snippet.title == "Laptop")).first()
 
 with Session(engine) as session:
-    item = session.get(Item, 1)
-    if item:
-        item.price = 899.00
-        session.add(item)
+    snippet = session.get(Snippet, 1)
+    if snippet:
+        snippet.code = "print('Snippet 1')"
+        session.add(snippet)
         session.commit()
 
-
 with Session(engine) as session:
-    item = session.get(Item, 1)
-    if item:
-        session.delete(item)
+    snippet = session.get(Snippet, 1)
+    if snippet:
+        session.delete(snippet)
         session.commit()
