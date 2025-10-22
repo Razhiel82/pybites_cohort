@@ -1,5 +1,5 @@
 # Snipster for PyBites Cohort
-## by Frederick
+A Programming snippets Tool
 
 
 # Snipster 
