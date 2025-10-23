@@ -1,0 +1,36 @@
+[project]
+name = "pybites-cohort"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Razhiel", email = "your@email.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "python-decouple>=3.8",
+    "python-dotenv>=1.1.1",
+    "sqlmodel>=0.0.27",
+]
+
+[project.scripts]
+pybites-cohort = "pybites_cohort:main"
+
+[build-system]
+requires = ["uv_build>=0.8.14,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.1",
+    "ty>=0.0.1a23",
+]
+
+[tool.poe.tasks]
+test = "pytest"
+cov = "pytest --cov=commonactors --cov-report=term-missing"
+lint = "ruff check ."
+format = "ruff format ."
+tc = "ty check ."
