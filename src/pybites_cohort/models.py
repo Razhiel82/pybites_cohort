@@ -3,8 +3,6 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 DATABASE_URL = config("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL, echo=True)
-
 
 class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -17,7 +15,7 @@ class Snippet(SQLModel, table=True):
         return snippet
 
 
-SQLModel.metadata.create_all(engine)
+engine = create_engine(DATABASE_URL, echo=True)
 
 with Session(engine) as session:
     snippet = Snippet(title="snippet 1", code="print('Snippet 1')")
@@ -46,3 +44,7 @@ with Session(engine) as session:
     if snippet:
         session.delete(snippet)
         session.commit()
+
+if __name__ == "__main__":  # pragma: no cover
+    SQLModel.metadata.create_all(engine)
+    print("Database + table created!")
