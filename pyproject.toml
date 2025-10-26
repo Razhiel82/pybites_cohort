@@ -30,7 +30,7 @@ dev = [
 
 [tool.poe.tasks]
 test = "pytest"
-cov = "pytest --cov=commonactors --cov-report=term-missing"
+cov = "pytest --cov=src --cov-report=term-missing"
 lint = "ruff check ."
 format = "ruff format ."
 tc = "ty check ."
