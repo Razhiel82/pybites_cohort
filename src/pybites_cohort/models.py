@@ -1,10 +1,19 @@
+from enum import Enum
+
 from decouple import config
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 DATABASE_URL = config("DATABASE_URL")
 
 
+class Language(str, Enum):
+    python = "py"
+    javascript = "js"
+    rust = "rs"
+
+
 class Snippet(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
     id: int | None = Field(default=None, primary_key=True)
     title: str
     code: str
@@ -24,7 +33,7 @@ with Session(engine) as session:
     session.refresh(snippet)
 
 with Session(engine) as session:
-    snippet = session.exec(select(Snippet)).all
+    snippet = session.exec(select(Snippet)).all()
 
 with Session(engine) as session:
     snippet = session.get(Snippet, 1)

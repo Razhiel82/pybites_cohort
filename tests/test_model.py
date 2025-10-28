@@ -3,12 +3,13 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from src.pybites_cohort.models import Snippet
 
-engine = create_engine("sqlite:///memory:", echo=True)
+engine = create_engine("sqlite:///:memory:", echo=True)
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def setup_database():
     SQLModel.metadata.create_all(engine)
+    yield
 
 
 def test_create_snippet():

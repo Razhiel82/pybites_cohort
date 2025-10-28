@@ -2,7 +2,7 @@
 A Programming snippets Tool
 
 
-# Snipster 
+# Snipster
 
 This is a Projekt of th PyBites Cohort
 
@@ -17,8 +17,12 @@ Goal of this is to learn the tooling for a real world App and while doing so to 
 * Python 3.13
 * UV
 * SQLModel
-* Ruff
-* 
+* ruff
+* pytest-cov
+* python-decouple
+* sqlalchemy
+* ty
+
 
 ### Installing
 
@@ -43,16 +47,24 @@ TBD
 
 Contributors names and contact info
 
-ex. Frederick 
+ex. Frederick
 ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
 
 ## Version History
 
-* 0.2
-    * added pre-commit
+* week 2:
+    * added 1 exception -> exceptions.py
+    * added testing repo class -> test_repo.py
+    * added Repository Pattern + ABCs -> repo.py
+* week 1:
+    * cleanup in memory error
+    * cleanup .gitignore
+    * Tests + Poe the poet
+    * added decoupled
     * Data model
-* 0.1
-    * Initial Release
+    * added pre commit
+    * Initial commit
+    *
 
 ## License
 
