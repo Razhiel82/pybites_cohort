@@ -12,7 +12,6 @@ class Language(str, Enum):
 
 
 class Snippet(SQLModel, table=True):
-    # __table_args__ = {"extend_existing": True}
     id: int | None = Field(default=None, primary_key=True)
     title: str
     code: str
