@@ -14,7 +14,7 @@ def repo():
 def add_snippet(repo):
     snippet = Snippet(
         title="Hello World",
-        code="print('Hello, World!')",
+        code="print('Hello, World! 1')",
         description="A simple hello world snippet",
         language=Language.python,
     )
@@ -26,12 +26,49 @@ def add_snippet(repo):
 def add_second_snippet(repo):
     snippet = Snippet(
         title="Hello World",
-        code="print('Hello, World!')",
+        code="print('Hello, World! 2')",
         description="A simple hello world snippet",
         language=Language.rust,
     )
     repo.add(snippet)
     return snippet
+
+
+@pytest.fixture(scope="function")
+def add_third_snippet(repo):
+    snippet = Snippet(
+        title="Hello World",
+        code="print('Hello, World! 3')",
+        description="A simple hello world snippet",
+        language=Language.rust,
+    )
+    repo.add(snippet)
+    return snippet
+
+
+@pytest.fixture(scope="function")
+def delete_first_snippet(repo):
+    repo.delete(1)
+
+
+def test_and_assign_incremeting_ids(
+    add_snippet, add_second_snippet, delete_first_snippet, add_third_snippet, repo
+):
+    snippet3 = Snippet(
+        title="Hello World",
+        code="print('Hello, World! 3')",
+        description="A simple hello world snippet",
+        language=Language.golang,
+    )
+    repo.add(snippet3)
+
+    assert 3 in repo._data
+
+
+def test_list_retuns_inserted_snippets(add_snippet, add_second_snippet, repo):
+    snippets = repo.list()
+    assert snippets[0] == add_snippet
+    assert snippets[1] == add_second_snippet
 
 
 def test_add_snippet(add_snippet, repo):
