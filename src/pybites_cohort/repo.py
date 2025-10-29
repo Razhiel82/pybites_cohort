@@ -52,6 +52,7 @@ class DBSnippetRepo(SnippetRepository):
 
     def add(self, snippet: Snippet):
         self.session.add(snippet)
+        self.session.commit()
 
     def list(self) -> Sequence[Snippet]:
         return self.session.query(self.model).all
@@ -60,7 +61,8 @@ class DBSnippetRepo(SnippetRepository):
         return self.session.query(self.model).get(snippet_id)
 
     def delete(self, snippet_id: int) -> None:
-        snippet = self.session.get(snippet_id)
-        if snippet:
-            self.session.delete(snippet)
-            self.session.commit()
+        snippet = self.session.get(Snippet, snippet_id)
+        if not snippet:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        self.session.delete(snippet)
+        self.session.commit()
