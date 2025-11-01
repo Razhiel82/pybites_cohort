@@ -8,7 +8,7 @@ This is a Projekt of th PyBites Cohort
 
 ## Description
 
-Goal of this is to learn the tooling for a real world App and while doing so to advance my overall knowlede of Python.
+Goal of this is to learn the tooling for a real world App and while doing so to advance my overall knowledge of Python.
 
 ## Getting Started
 
@@ -22,6 +22,8 @@ Goal of this is to learn the tooling for a real world App and while doing so to 
 * python-decouple
 * sqlalchemy
 * ty
+* alembic
+* psycopg2-binary
 
 
 ### Installing
@@ -56,6 +58,8 @@ ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
     * added 1 exception -> exceptions.py
     * added testing repo class -> test_repo.py
     * added Repository Pattern + ABCs -> repo.py
+    * added Alembic
+
 * week 1:
     * cleanup in memory error
     * cleanup .gitignore
@@ -64,7 +68,6 @@ ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
     * Data model
     * added pre commit
     * Initial commit
-    *
 
 ## License
 
