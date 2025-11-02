@@ -1,7 +1,14 @@
+from enum import Enum
+
 from decouple import config
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-DATABASE_URL = config("DATABASE_URL")
+
+class Language(str, Enum):
+    python: str = "py"
+    javascript: str = "js"
+    rust: str = "rs"
+    golang: str = "go"
 
 
 class Snippet(SQLModel, table=True):
@@ -15,36 +22,38 @@ class Snippet(SQLModel, table=True):
         return snippet
 
 
-engine = create_engine(DATABASE_URL, echo=True)
+if __name__ == "__main__":  # pragma: no cover
+    DATABASE_URL = config("DATABASE_URL")
 
-with Session(engine) as session:
-    snippet = Snippet(title="snippet 1", code="print('Snippet 1')")
-    session.add(snippet)
-    session.commit()
-    session.refresh(snippet)
+    engine = create_engine(DATABASE_URL, echo=True)
+    SQLModel.metadata.create_all(engine)
 
-with Session(engine) as session:
-    snippet = session.exec(select(Snippet)).all
-
-with Session(engine) as session:
-    snippet = session.get(Snippet, 1)
-
-with Session(engine) as session:
-    snippet = session.exec(select(Snippet).where(Snippet.title == "Laptop")).first()
-
-with Session(engine) as session:
-    snippet = session.get(Snippet, 1)
-    if snippet:
-        snippet.code = "print('Snippet 1')"
+    with Session(engine) as session:
+        snippet = Snippet(title="snippet 1", code="print('Snippet 1')")
         session.add(snippet)
         session.commit()
+        session.refresh(snippet)
 
-with Session(engine) as session:
-    snippet = session.get(Snippet, 1)
-    if snippet:
-        session.delete(snippet)
-        session.commit()
+    with Session(engine) as session:
+        snippet = session.exec(select(Snippet)).all()
 
-if __name__ == "__main__":  # pragma: no cover
-    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        snippet = session.get(Snippet, 1)
+
+    with Session(engine) as session:
+        snippet = session.exec(select(Snippet).where(Snippet.title == "Laptop")).first()
+
+    with Session(engine) as session:
+        snippet = session.get(Snippet, 1)
+        if snippet:
+            snippet.code = "print('Snippet 1')"
+            session.add(snippet)
+            session.commit()
+
+    with Session(engine) as session:
+        snippet = session.get(Snippet, 1)
+        if snippet:
+            session.delete(snippet)
+            session.commit()
+
     print("Database + table created!")

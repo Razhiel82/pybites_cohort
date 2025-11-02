@@ -1,17 +1,21 @@
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
 
-from src.pybites_cohort.models import Snippet
-
-engine = create_engine("sqlite:///memory:", echo=True)
+from pybites_cohort.models import Snippet
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_database():
+@pytest.fixture
+def engine(scope="function"):
+    return create_engine("sqlite:///:memory:", echo=True)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_database(engine):
     SQLModel.metadata.create_all(engine)
+    yield
 
 
-def test_create_snippet():
+def test_create_snippet(engine):
     snippet = Snippet(title="Test Snippet", code="print('Hello, World!')")
     with Session(engine) as session:
         session.add(snippet)
@@ -23,7 +27,7 @@ def test_create_snippet():
     assert snippet.code == "print('Hello, World!')"
 
 
-def test_create_snippet_with_cls_method():
+def test_create_snippet_with_cls_method(engine):
     snippet = {
         "title": "Test Snippet with Class Method",
         "code": "print('Hello, World!')",
