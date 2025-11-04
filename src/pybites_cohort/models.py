@@ -15,6 +15,8 @@ class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
     code: str
+    description: str
+    favorite: bool = Field(default=False)
 
     @classmethod
     def create(cls, **kwargs):
@@ -23,7 +25,13 @@ class Snippet(SQLModel, table=True):
 
 
 if __name__ == "__main__":  # pragma: no cover
-    DATABASE_URL = config("DATABASE_URL")
+    DB_USER = config("DB_USER")
+    DB_PASS = config("DB_PASS")
+    DB_HOST = config("DB_HOST")
+    DB_PORT = config("DB_PORT")
+    DB_NAME = config("DB_NAME")
+
+    DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
     engine = create_engine(DATABASE_URL, echo=True)
     SQLModel.metadata.create_all(engine)
