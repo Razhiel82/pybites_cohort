@@ -25,6 +25,22 @@ class SnippetRepository(ABC):  # pragma : no cover
     def delete(self, snippet_id: int) -> None:
         pass
 
+    @abstractmethod
+    def search(self, snippet_title: str) -> None:
+        pass
+
+    @abstractmethod
+    def favorite_on(self, snippet_id: int) -> None:
+        pass
+
+    @abstractmethod
+    def favorite_off(self, snippet_id: int) -> None:
+        pass
+
+    # @abstractmethod
+    # def tag(self, snippet_id: int, *tags: str, remove: bool = False, sort: bool = True) -> None:
+    #     pass
+
 
 class InMemorySnippetRepo(SnippetRepository):
     def __init__(self):
@@ -44,6 +60,28 @@ class InMemorySnippetRepo(SnippetRepository):
         if snippet_id not in self._data:
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
         self._data.pop(snippet_id, None)
+
+    def search(self, snippet_title: str) -> Sequence[Snippet]:
+        return [
+            snippet
+            for snippet in self._data.values()
+            if snippet_title.lower() in snippet.title.lower()
+        ]
+        # return [snippet for snippet in self._data.values() if snippet_title.lower() in snippet.title.lower() and language.lower() == snippet.language]
+
+    def favorite_on(self, snippet_id: int) -> None:
+        snippet = self.get(snippet_id)
+        if snippet_id not in self._data:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        elif snippet.favorite is False:
+            snippet.favorite = True
+
+    def favorite_off(self, snippet_id: int) -> None:
+        snippet = self.get(snippet_id)
+        if snippet_id not in self._data:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        elif snippet.favorite is True:
+            snippet.favorite = False
 
 
 class DBSnippetRepo(SnippetRepository):
