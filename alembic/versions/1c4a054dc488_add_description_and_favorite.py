@@ -1,8 +1,8 @@
 """add description and favorite
 
-Revision ID: 562867e11748
+Revision ID: 1c4a054dc488
 Revises: ebd48441ea8f
-Create Date: 2025-11-03 23:35:56.986474
+Create Date: 2025-11-05 00:06:37.707376
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "562867e11748"
+revision: str = "1c4a054dc488"
 down_revision: Union[str, Sequence[str], None] = "ebd48441ea8f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
