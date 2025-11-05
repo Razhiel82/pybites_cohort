@@ -5,7 +5,7 @@ from typing import Sequence
 
 # from sqlmodel import Session, select
 from .exceptions import SnippetNotFoundError
-from .models import Snippet
+from .models import Language, Snippet
 
 
 class SnippetRepository(ABC):  # pragma : no cover
@@ -61,13 +61,15 @@ class InMemorySnippetRepo(SnippetRepository):
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
         self._data.pop(snippet_id, None)
 
-    def search(self, snippet_title: str) -> Sequence[Snippet]:
+    def search(
+        self, snippet_title: str, language: Language | None = None
+    ) -> Sequence[Snippet]:
         return [
             snippet
             for snippet in self._data.values()
             if snippet_title.lower() in snippet.title.lower()
+            and (language is None or language == snippet.language)
         ]
-        # return [snippet for snippet in self._data.values() if snippet_title.lower() in snippet.title.lower() and language.lower() == snippet.language]
 
     def favorite_on(self, snippet_id: int) -> None:
         snippet = self.get(snippet_id)
