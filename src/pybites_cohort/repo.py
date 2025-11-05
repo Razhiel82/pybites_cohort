@@ -5,7 +5,7 @@ from typing import Sequence
 
 # from sqlmodel import Session, select
 from .exceptions import SnippetNotFoundError
-from .models import Language, Snippet
+from .models import Language, Snippet, Tag
 
 
 class SnippetRepository(ABC):  # pragma : no cover
@@ -37,9 +37,11 @@ class SnippetRepository(ABC):  # pragma : no cover
     def favorite_off(self, snippet_id: int) -> None:
         pass
 
-    # @abstractmethod
-    # def tag(self, snippet_id: int, *tags: str, remove: bool = False, sort: bool = True) -> None:
-    #     pass
+    @abstractmethod
+    def tag(
+        self, snippet_id: int, *tags: str, remove: bool = False, sort: bool = True
+    ) -> None:
+        pass
 
 
 class InMemorySnippetRepo(SnippetRepository):
@@ -84,6 +86,27 @@ class InMemorySnippetRepo(SnippetRepository):
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
         elif snippet.favorite is True:
             snippet.favorite = False
+
+    def tag(
+        self, snippet_id: int, *tags: str, remove: bool = False, sort: bool = True
+    ) -> None:
+        snippet = self.get(snippet_id)
+        if snippet_id not in self._data:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        if not hasattr(snippet, "tags"):
+            snippet.tags = []
+        tag_objs = [Tag(name=tag_name) for tag_name in tags]
+        if remove:
+            snippet.tags = [tag for tag in snippet.tags if tag.name not in tags]
+        else:
+            existing_tag_names = {tag.name for tag in snippet.tags}
+            for tag_obj in tag_objs:
+                if tag_obj.name not in existing_tag_names:
+                    snippet.tags.append(tag_obj)
+                    existing_tag_names.add(tag_obj.name)
+
+        if sort:
+            snippet.tags = sorted(snippet.tags, key=lambda tag: tag.name)
 
 
 class DBSnippetRepo(SnippetRepository):

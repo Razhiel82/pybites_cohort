@@ -1,7 +1,7 @@
 import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from pybites_cohort.models import Snippet
+from pybites_cohort.models import Snippet, Tag
 
 
 @pytest.fixture
@@ -50,22 +50,30 @@ def test_list_favorite_snippets(engine):
 
 
 def test_create_snippet(engine):
+    tag1 = Tag(name="test1")
+    tag2 = Tag(name="test2")
     snippet = Snippet(
         title="Test Snippet",
         code="print('Hello, World!')",
         description="A test snippet",
         favorite=True,
+        tags=[tag1, tag2],
     )
     with Session(engine) as session:
         session.add(snippet)
         session.commit()
         session.refresh(snippet)
+        tags = snippet.tags
 
+    assert {tag.name for tag in tags} == {"test1", "test2"}
     assert snippet.id is not None
     assert snippet.title == "Test Snippet"
     assert snippet.code == "print('Hello, World!')"
     assert snippet.description == "A test snippet"
     assert snippet.favorite is True
+    assert len(snippet.tags) == 2
+    assert {tag.name for tag in snippet.tags} == {"test1", "test2"}
+
     snippet.favorite = False
     assert snippet.favorite is False
 
