@@ -165,6 +165,16 @@ def test_favorite_snippet_off(add_favorite_snippet, repo):
     assert snippet[0].favorite is False
 
 
+def test_favorite_snippet_on_non_existing(repo):
+    with pytest.raises(SnippetNotFoundError):
+        repo.favorite_on(99)
+
+
+def test_favorite_snippet_off_non_existing(repo):
+    with pytest.raises(SnippetNotFoundError):
+        repo.favorite_off(99)
+
+
 def test_search_snippets(add_snippets, repo):
     assert len(repo.search("Hello python")) == 1
     assert len(repo.search("hello pytHON")) == 1
@@ -176,3 +186,26 @@ def test_search_snippets(add_snippets, repo):
 
 def test_add_snippets(add_snippets, repo):
     assert len(repo.list()) == 4
+
+
+def test_tag_snippet(add_snippets, repo):
+    repo.tag(1, "test1", "test2")
+    snippet = repo.get(1)
+    assert snippet is not None
+    assert snippet.tag_list == ["test1", "test2"]
+    repo.tag(1, "test1", remove=True)
+    snippet = repo.get(1)
+    assert snippet.tag_list == ["test2"]
+    repo.tag(1, "test2", "test3", "test4")
+    snippet = repo.get(1)
+    assert snippet.tag_list == ["test2", "test3", "test4"]
+    snippet = repo.get(1)
+    repo.tag(1, "test2", "test3", "test3", remove=True)
+    snippet = repo.get(1)
+    assert snippet.tag_list == ["test4"]
+    with pytest.raises(SnippetNotFoundError):
+        repo.tag(99, "nonexistent", remove=True)
+    repo.tag(1, "test5", "test4", "test3", sort=True)
+    snippet = repo.get(1)
+    assert snippet.tag_list == ["test3", "test4", "test5"]
+    # Add multiple tags and sort

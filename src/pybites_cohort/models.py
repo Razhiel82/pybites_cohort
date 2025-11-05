@@ -1,7 +1,7 @@
 from enum import Enum
 
 from decouple import config
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
 
 
 class Language(str, Enum):
@@ -11,6 +11,19 @@ class Language(str, Enum):
     golang: str = "go"
 
 
+class SnippetTagLink(SQLModel, table=True):
+    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
+    tag_id: int = Field(foreign_key="tag.id", primary_key=True)
+
+
+class Tag(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    snippets: list["Snippet"] = Relationship(
+        back_populates="tags", link_model=SnippetTagLink
+    )
+
+
 class Snippet(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
@@ -18,6 +31,11 @@ class Snippet(SQLModel, table=True):
     description: str
     favorite: bool = Field(default=False)
     language: Language = Field(default=Language.python)
+    tags: list[Tag] = Relationship(back_populates="snippets", link_model=SnippetTagLink)
+
+    @property
+    def tag_list(self) -> list[str]:
+        return sorted(tag.name for tag in self.tags)
 
     @classmethod
     def create(cls, **kwargs):
