@@ -17,6 +17,7 @@ class Snippet(SQLModel, table=True):
     code: str
     description: str
     favorite: bool = Field(default=False)
+    language: Language = Field(default=Language.python)
 
     @classmethod
     def create(cls, **kwargs):

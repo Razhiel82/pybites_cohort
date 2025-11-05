@@ -171,7 +171,7 @@ def test_search_snippets(add_snippets, repo):
     assert len(repo.search("Hello rust")) == 1
     assert len(repo.search("notfound")) == 0
     assert len(repo.search("Hello")) == 3
-    # assert len(repo.search("Hello", language=Language.python)) == 1
+    assert len(repo.search("Hello", language=Language.python)) == 1
 
 
 def test_add_snippets(add_snippets, repo):
