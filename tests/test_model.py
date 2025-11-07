@@ -1,5 +1,5 @@
 import pytest
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, select, true
 
 from pybites_cohort.models import Snippet, Tag
 
@@ -39,10 +39,8 @@ def test_list_favorite_snippets(engine):
     with Session(engine) as session:
         session.add_all(snippets)
         session.commit()
-
-    with Session(engine) as session:
         favorite_snippets = session.exec(
-            select(Snippet).where(Snippet.favorite is True)
+            select(Snippet).where(Snippet.favorite == true())
         ).all()
 
     assert len(favorite_snippets) == 2

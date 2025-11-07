@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 
 # from pathlib import Path
-from typing import Sequence
+from typing import Dict, List, Optional, Sequence
 
-# from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
+
 from .exceptions import SnippetNotFoundError
 from .models import Language, Snippet, Tag
 
@@ -26,7 +28,9 @@ class SnippetRepository(ABC):  # pragma : no cover
         pass
 
     @abstractmethod
-    def search(self, snippet_title: str) -> None:
+    def search(
+        self, snippet_title: str, language: Optional[Language] = None
+    ) -> Sequence[Snippet]:
         pass
 
     @abstractmethod
@@ -43,20 +47,56 @@ class SnippetRepository(ABC):  # pragma : no cover
     ) -> None:
         pass
 
+    @abstractmethod
+    def list_favorites(self) -> Sequence[Snippet]:
+        pass
+
+
+class SimpleTag:
+    def __init__(self, name: str):
+        self.name = name
+
+
+class SimpleSnippet:
+    def __init__(self, title, code, description, language, favorite=False, id=None):
+        self.id = id
+        self.title = title
+        self.code = code
+        self.description = description
+        self.language = language
+        self.favorite = favorite
+        self.tags: List[SimpleTag] = []
+
+    def __eq__(self, other):
+        return (
+            (isinstance(other, SimpleSnippet) or hasattr(other, "title"))
+            and self.title == other.title
+            and self.code == other.code
+            and self.description == other.description
+            and self.language == other.language
+            and self.favorite == getattr(other, "favorite", False)
+        )
+
 
 class InMemorySnippetRepo(SnippetRepository):
     def __init__(self):
-        self._data = {}
+        self._data: Dict[int, Snippet] = {}
+        self._next_id = 1
 
     def add(self, snippet: Snippet) -> None:
-        next_id = max(self._data.keys(), default=0) + 1
-        self._data[next_id] = snippet
+        snippet.id = self._next_id
+        self._data[self._next_id] = snippet
+        self._next_id += 1
 
     def list(self) -> Sequence[Snippet]:
         return list(self._data.values())
 
     def get(self, snippet_id: int) -> Snippet | None:
         return self._data.get(snippet_id)
+
+    def add_all(self, snippet: Snippet) -> None:
+        for snip in snippet:
+            self.add(snip)
 
     def delete(self, snippet_id: int) -> None:
         if snippet_id not in self._data:
@@ -108,20 +148,28 @@ class InMemorySnippetRepo(SnippetRepository):
         if sort:
             snippet.tags = sorted(snippet.tags, key=lambda tag: tag.name)
 
+    def list_favorites(self) -> Sequence[Snippet]:
+        return [snippet for snippet in self._data.values() if snippet.favorite]
+
 
 class DBSnippetRepo(SnippetRepository):
     def __init__(self, session) -> None:
         self.session = session
 
-    def add(self, snippet: Snippet):
+    def add(self, snippet: Snippet) -> None:
         self.session.add(snippet)
         self.session.commit()
 
     def list(self) -> Sequence[Snippet]:
-        return self.session.query(self.model).all
+        return self.session.exec(select(Snippet)).all()
 
     def get(self, snippet_id: int) -> Snippet | None:
-        return self.session.query(self.model).get(snippet_id)
+        stmt = (
+            select(Snippet)
+            .where(Snippet.id == snippet_id)
+            .options(selectinload(Snippet.tags))
+        )
+        return self.session.exec(stmt).first()
 
     def delete(self, snippet_id: int) -> None:
         snippet = self.session.get(Snippet, snippet_id)
@@ -129,3 +177,54 @@ class DBSnippetRepo(SnippetRepository):
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
         self.session.delete(snippet)
         self.session.commit()
+
+    def search(
+        self, snippet_title: str, language: Optional[Language] = None
+    ) -> List[Snippet]:
+        statement = select(Snippet).where(Snippet.title.ilike(f"%{snippet_title}%"))
+        if language:
+            statement = statement.where(Snippet.language == language)
+        result = self.session.exec(statement)
+        return result.all()
+
+    def favorite_on(self, snippet_id: int) -> None:
+        snippet = self.session.get(Snippet, snippet_id)
+        if not snippet:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        snippet.favorite = True
+        self.session.add(snippet)
+        self.session.commit()
+
+    def favorite_off(self, snippet_id: int) -> None:
+        snippet = self.session.get(Snippet, snippet_id)
+        if not snippet:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+        snippet.favorite = False
+        self.session.add(snippet)
+        self.session.commit()
+
+    def tag(self, snippet_id: int, *tags: str, remove: bool = False, sort: bool = True):
+        snippet = self.get(snippet_id)
+        if not snippet:
+            raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
+
+        existing_tag_names = {tag.name for tag in snippet.tags}
+
+        if remove:
+            snippet.tags = [tag for tag in snippet.tags if tag.name not in tags]
+        else:
+            for tag_name in tags:
+                if tag_name not in existing_tag_names:
+                    new_tag = Tag(name=tag_name)
+                    snippet.tags.append(new_tag)
+                    existing_tag_names.add(tag_name)
+
+        if sort:
+            snippet.tags.sort(key=lambda tag: tag.name)
+
+        self.session.add(snippet)
+        self.session.commit()
+
+    def list_favorites(self) -> Sequence[Snippet]:
+        statement = select(Snippet).where(Snippet.favorite)
+        return self.session.exec(statement).all()
