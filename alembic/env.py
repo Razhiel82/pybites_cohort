@@ -6,6 +6,8 @@ from sqlmodel import SQLModel
 
 from alembic import context
 
+# from src.pybites_cohort.models import *
+
 DB_USER = config("DB_USER")
 DB_PASS = config("DB_PASS")
 DB_HOST = config("DB_HOST")
