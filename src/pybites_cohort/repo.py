@@ -52,32 +52,6 @@ class SnippetRepository(ABC):  # pragma : no cover
         pass
 
 
-class SimpleTag:
-    def __init__(self, name: str):
-        self.name = name
-
-
-class SimpleSnippet:
-    def __init__(self, title, code, description, language, favorite=False, id=None):
-        self.id = id
-        self.title = title
-        self.code = code
-        self.description = description
-        self.language = language
-        self.favorite = favorite
-        self.tags: List[SimpleTag] = []
-
-    def __eq__(self, other):
-        return (
-            (isinstance(other, SimpleSnippet) or hasattr(other, "title"))
-            and self.title == other.title
-            and self.code == other.code
-            and self.description == other.description
-            and self.language == other.language
-            and self.favorite == getattr(other, "favorite", False)
-        )
-
-
 class InMemorySnippetRepo(SnippetRepository):
     def __init__(self):
         self._data: Dict[int, Snippet] = {}
