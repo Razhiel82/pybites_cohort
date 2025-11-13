@@ -90,7 +90,7 @@ def add_snippet(repo):
 def add_second_snippet(repo):
     snippet = Snippet(
         title="Hello World",
-        code="print('Hello, World! 2')",
+        code='fn main() { \n\tprintln!("Hello World!");\n}  ',
         description="A simple hello world snippet",
         language=Language.rust,
     )

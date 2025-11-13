@@ -1,7 +1,15 @@
 from enum import Enum
 
 from decouple import config
-from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
+from sqlmodel import (
+    Field,
+    Relationship,
+    Session,
+    SQLModel,
+    UniqueConstraint,
+    create_engine,
+    select,
+)
 
 
 class Language(str, Enum):
@@ -14,6 +22,10 @@ class Language(str, Enum):
 class SnippetTagLink(SQLModel, table=True):
     snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
     tag_id: int = Field(foreign_key="tag.id", primary_key=True)
+
+    __table_args__ = (
+        UniqueConstraint("snippet_id", "tag_id", name="unique_snippet_tag"),
+    )
 
 
 class Tag(SQLModel, table=True):
@@ -52,7 +64,7 @@ if __name__ == "__main__":  # pragma: no cover
 
     DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-    engine = create_engine(DATABASE_URL, echo=True)
+    engine = create_engine(DATABASE_URL, echo=False)
     SQLModel.metadata.create_all(engine)
 
     with Session(engine) as session:
