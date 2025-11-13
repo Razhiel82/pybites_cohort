@@ -183,9 +183,11 @@ class DBSnippetRepo(SnippetRepository):
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
 
         existing_tag_names = {tag.name for tag in snippet.tags}
-
         if remove:
-            snippet.tags = [tag for tag in snippet.tags if tag.name not in tags]
+            # Tags zum Entfernen finden
+            to_remove = [tag for tag in snippet.tags if tag.name in tags]
+            for tag in to_remove:
+                snippet.tags.remove(tag)  # Entfernt Beziehung
         else:
             for tag_name in tags:
                 if tag_name not in existing_tag_names:
