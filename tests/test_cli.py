@@ -3,6 +3,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 from pybites_cohort.cli import DBSnippetRepo
+from pybites_cohort.exceptions import SnippetNotFoundError
 
 # from pybites_cohort.exceptions import SnippetNotFoundError
 from pybites_cohort.models import Language, Snippet
@@ -86,26 +87,111 @@ def repo(request, session):
 
 
 @pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
-def add(repo):
+def test_add(repo):
     added = []
     for snippet in example_snippets:
         repo.add(snippet)
         added.append(snippet)
     assert len(added) == len(example_snippets)
-    return added
 
 
 @pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
-def list_snippets(repo, add_snippets):
+def test_list_snippets(repo, add_snippets):
+    snippets = repo.list("--favorite")
+    assert len(snippets) == 1
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_list_snippets_favorites(repo, add_snippets):
     snippets = repo.list()
-    assert len(snippets) == len(add_snippets) + 1
-    return snippets
+    assert len(snippets) == len(add_snippets)
 
 
-@pytest.fixture(scope="function")
-def get(repo, add_snippet, DBSnippetRepo):
-    snippet = add_snippet[1]
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_get(repo, add_snippet):
+    snippet = add_snippet
+    print(snippet)
     assert snippet is not None
     fetched = repo.get(snippet.id)
     assert fetched.id == snippet.id
-    return fetched
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_get_non_existing(repo):
+    not_existing_id = 99
+    snippet = repo.get(99)
+    with pytest.raises(SnippetNotFoundError):
+        if snippet is None:
+            raise SnippetNotFoundError(f"Snippet with id {not_existing_id} not found")
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_delete(repo, add_snippet):
+    snippet = add_snippet
+    assert snippet is not None
+    repo.delete(snippet.id)
+    assert repo.get(snippet.id) is None
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_delete_non_existing(repo):
+    not_existing_id = 99
+    with pytest.raises(SnippetNotFoundError):
+        repo.delete(not_existing_id)
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_search(repo, add_snippets):
+    snippets = repo.search("Hello")
+    assert len(snippets) == 3
+    snippets_python = repo.search("Hello", language=Language.python)
+    assert len(snippets_python) == 1
+    snippets_rust = repo.search("hello", language=Language.rust)
+    assert len(snippets_rust) == 1
+    snippets_golang = repo.search("Hello", language=Language.golang)
+    assert len(snippets_golang) == 1
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_fav_on_off(repo, add_snippet):
+    snippet = add_snippet
+    assert snippet is not None
+    repo.favorite_on(snippet.id)
+    fetched = repo.get(snippet.id)
+    assert fetched.favorite is True
+    repo.favorite_off(snippet.id)
+    fetched = repo.get(snippet.id)
+    assert fetched.favorite is False
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_fav_on_non_existing(repo):
+    not_existing_id = 99
+    with pytest.raises(SnippetNotFoundError):
+        repo.favorite_on(not_existing_id)
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_fav_off_non_existing(repo):
+    not_existing_id = 99
+    with pytest.raises(SnippetNotFoundError):
+        repo.favorite_off(not_existing_id)
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_tag_add_remove(repo, add_snippet):
+    snippet = add_snippet
+    assert snippet is not None
+    repo.tag(snippet.id, "tag1", "tag2")
+    fetched = repo.get(snippet.id)
+    assert sorted(tag.name for tag in fetched.tags) == ["tag1", "tag2"]
+    repo.tag(snippet.id, "tag1", remove=True)
+    fetched = repo.get(snippet.id)
+    assert sorted(tag.name for tag in fetched.tags) == ["tag2"]
+
+
+@pytest.mark.parametrize("repo", [DBSnippetRepo], indirect=True)
+def test_tag_non_existing(repo):
+    not_existing_id = 99
+    with pytest.raises(SnippetNotFoundError):
+        repo.tag(not_existing_id, "tag1")
