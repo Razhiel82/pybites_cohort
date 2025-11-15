@@ -8,6 +8,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from sqlmodel import Session, create_engine
 
+from pybites_cohort.exceptions import SnippetNotFoundError
 from pybites_cohort.models import Language, Snippet, Tag
 from pybites_cohort.repo import DBSnippetRepo
 
@@ -55,7 +56,7 @@ def add(
 def list(favorite: bool = False):
     session = get_session()
     repo = DBSnippetRepo(session)
-    snippets = repo.list()
+    snippets = repo.list(favorite=favorite)
     star_emoji = "⭐"
     table = Table(title="Snippet", show_lines=True)
     table.add_column("ID", style="red", no_wrap=True)
@@ -88,9 +89,6 @@ def list(favorite: bool = False):
         )
     console = Console()
     console.print(table, justify="left")
-    # typer.echo(
-    #     f"No: {snippet.id}, Title: {snippet.title}, Language: ({snippet.language.name}), Favorite: {snippet.favorite} Tags: {', '.join(snippet.tag_list)}"
-    # )
 
 
 @app.command()
@@ -121,7 +119,7 @@ def get(snippet_id: int):
         #     f"Snippet {snippet.id}: {snippet.title}\nCode:\n{snippet.code}\nDescription: {snippet.description}\nLanguage: {snippet.language.name}\nFavorite: {snippet.favorite}\nTags: {', '.join(snippet.tag_list)}"
         # )
     else:
-        typer.echo(f"Snippet with id {snippet_id} not found.")
+        raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
 
 
 @app.command()
@@ -191,5 +189,5 @@ def tag(
         raise typer.Exit(code=1)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     app()

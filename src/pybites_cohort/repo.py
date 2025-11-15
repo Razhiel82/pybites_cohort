@@ -62,7 +62,13 @@ class InMemorySnippetRepo(SnippetRepository):
         self._data[self._next_id] = snippet
         self._next_id += 1
 
-    def list(self) -> Sequence[Snippet]:
+    def list(self, favorite: bool | None = None) -> Sequence[Snippet]:
+        if favorite is True:
+            return [
+                snippet
+                for snippet in self._data.values()
+                if snippet.favorite == favorite
+            ]
         return list(self._data.values())
 
     def get(self, snippet_id: int) -> Snippet | None:
@@ -134,8 +140,11 @@ class DBSnippetRepo(SnippetRepository):
         self.session.add(snippet)
         self.session.commit()
 
-    def list(self) -> Sequence[Snippet]:
-        return self.session.exec(select(Snippet)).all()
+    def list(self, favorite: bool | None = None):
+        query = select(Snippet)
+        if favorite:
+            query = query.where(Snippet.favorite)
+        return self.session.exec(query).all()
 
     def get(self, snippet_id: int) -> Snippet | None:
         stmt = (
