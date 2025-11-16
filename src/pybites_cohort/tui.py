@@ -75,6 +75,64 @@ class Snipster(App):
             content.mount(Input(placeholder="Tags (comma separated)", id="tags"))
             content.mount(Button("Submit", id="submit"))
 
+    @on(Button.Pressed, "#submit")
+    def submit_snippet(self) -> None:
+        title_input = self.query_one("#title", Input)
+        code_input = self.query_one("#code", Input)
+        description_input = self.query_one("#description", Input)
+        tags_input = self.query_one("#tags", Input)
+        title = title_input.value
+        code = code_input.value
+        description = description_input.value
+        language_str = getattr(self, "selected_language", "Python")
+        language_enum = Language[language_str.lower()]
+        tags_str = tags_input.value
+        tags_list = [tag.strip() for tag in tags_str.split(",") if tag.strip()]
+        session = get_session()
+        repo = DBSnippetRepo(session)
+        snippet = Snippet(
+            title=title,
+            code=code,
+            description=description,
+            language=language_enum,
+            favorite=False,
+        )
+        repo.add(snippet)
+
+        if not snippet.id:
+            session.commit()  # Nur falls commit nicht schon in add() drin ist
+
+        if snippet.id is None:
+            raise RuntimeError("Snippet ID not set after add/commit")
+
+        if tags_list:
+            repo.tag(snippet.id, *tags_list)
+
+        # Hier bauen wir ein Snippet-Objekt auf und speichern es in DB
+        session = get_session()
+        repo = DBSnippetRepo(session)
+
+        snippet = Snippet(
+            title=title,
+            code=code,
+            description=description,
+            language=language_enum,
+            favorite=False,
+        )
+        repo.add(snippet)
+
+        status = self.query_one("#status", Static)
+        status.update(f"Snippet '{title}' added.")
+
+        # Eingabefelder verstecken und entfernen
+        self.show_add_inputs = False
+        self.query_one("#title").remove()
+        self.query_one("#code").remove()
+        self.query_one("#submit").remove()
+        self.query_one("#description").remove()
+        self.query_one("#language_select").remove()
+        self.query_one("#tags").remove()
+
     @on(Button.Pressed, "#list")
     def list_snippets(self) -> None:
         self.clear_content_area()
@@ -191,40 +249,6 @@ class Snipster(App):
             self.query_one("#description").remove()
             self.query_one("#language_select").remove()
             self.query_one("#tags").remove()
-
-    @on(Button.Pressed, "#submit")
-    def submit_snippet(self) -> None:
-        title_input = self.query_one("#title", Input)
-        code_input = self.query_one("#code", Input)
-        title = title_input.value
-        code = code_input.value
-        language_str = getattr(self, "selected_language", "Python")  # Default
-        language_enum = Language[language_str.lower()]
-        # Hier bauen wir ein Snippet-Objekt auf und speichern es in DB
-        session = get_session()
-        repo = DBSnippetRepo(session)
-
-        snippet = Snippet(
-            title=title,
-            code=code,
-            description="",  # evtl. weitere Inputs hinzufügen
-            language=language_enum,
-            favorite=False,
-            tags=[],
-        )
-        repo.add(snippet)
-
-        status = self.query_one("#status", Static)
-        status.update(f"Snippet '{title}' added.")
-
-        # Eingabefelder verstecken und entfernen
-        self.show_add_inputs = False
-        self.query_one("#title").remove()
-        self.query_one("#code").remove()
-        self.query_one("#submit").remove()
-        self.query_one("#description").remove()
-        self.query_one("#language_select").remove()
-        self.query_one("#tags").remove()
 
 
 if __name__ == "__main__":
