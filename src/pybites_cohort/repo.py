@@ -52,32 +52,6 @@ class SnippetRepository(ABC):  # pragma : no cover
         pass
 
 
-class SimpleTag:
-    def __init__(self, name: str):
-        self.name = name
-
-
-class SimpleSnippet:
-    def __init__(self, title, code, description, language, favorite=False, id=None):
-        self.id = id
-        self.title = title
-        self.code = code
-        self.description = description
-        self.language = language
-        self.favorite = favorite
-        self.tags: List[SimpleTag] = []
-
-    def __eq__(self, other):
-        return (
-            (isinstance(other, SimpleSnippet) or hasattr(other, "title"))
-            and self.title == other.title
-            and self.code == other.code
-            and self.description == other.description
-            and self.language == other.language
-            and self.favorite == getattr(other, "favorite", False)
-        )
-
-
 class InMemorySnippetRepo(SnippetRepository):
     def __init__(self):
         self._data: Dict[int, Snippet] = {}
@@ -88,7 +62,13 @@ class InMemorySnippetRepo(SnippetRepository):
         self._data[self._next_id] = snippet
         self._next_id += 1
 
-    def list(self) -> Sequence[Snippet]:
+    def list(self, favorite: bool | None = None) -> Sequence[Snippet]:
+        if favorite is True:
+            return [
+                snippet
+                for snippet in self._data.values()
+                if snippet.favorite == favorite
+            ]
         return list(self._data.values())
 
     def get(self, snippet_id: int) -> Snippet | None:
@@ -160,8 +140,11 @@ class DBSnippetRepo(SnippetRepository):
         self.session.add(snippet)
         self.session.commit()
 
-    def list(self) -> Sequence[Snippet]:
-        return self.session.exec(select(Snippet)).all()
+    def list(self, favorite: bool | None = None):
+        query = select(Snippet)
+        if favorite:
+            query = query.where(Snippet.favorite)
+        return self.session.exec(query).all()
 
     def get(self, snippet_id: int) -> Snippet | None:
         stmt = (
@@ -209,9 +192,11 @@ class DBSnippetRepo(SnippetRepository):
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
 
         existing_tag_names = {tag.name for tag in snippet.tags}
-
         if remove:
-            snippet.tags = [tag for tag in snippet.tags if tag.name not in tags]
+            # Tags zum Entfernen finden
+            to_remove = [tag for tag in snippet.tags if tag.name in tags]
+            for tag in to_remove:
+                snippet.tags.remove(tag)  # Entfernt Beziehung
         else:
             for tag_name in tags:
                 if tag_name not in existing_tag_names:
