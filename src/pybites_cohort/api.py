@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import List, Optional
 
 from decouple import config
 from fastapi import Depends, FastAPI, HTTPException
 from sqlmodel import Session, create_engine
 
+from pybites_cohort.exceptions import SnippetNotFoundError
 from pybites_cohort.models import Language
 from pybites_cohort.repo import DBSnippetRepo
 
@@ -64,3 +65,38 @@ def get(snippet_id: int, session: Session = Depends(get_session)):
     if snippet is None:
         raise HTTPException(status_code=404, detail="Snippet not found")
     return snippet
+
+
+@app.post("/snippets/{snippet_id}/fav_on")
+def fav_on(snippet_id: int, session: Session = Depends(get_session)):
+    repo = DBSnippetRepo(session)
+    snippet = repo.favorite_on(snippet_id)
+    if snippet is None:
+        raise HTTPException(status_code=404, detail="Snippet not found")
+    return {"message": f"Snippet {snippet_id} is a favorite now."}
+
+
+@app.post("/snippets/{snippet_id}/fav_off")
+def fav_off(snippet_id: int, session: Session = Depends(get_session)):
+    repo = DBSnippetRepo(session)
+    snippet = repo.favorite_off(snippet_id)
+    if snippet is None:
+        raise HTTPException(status_code=404, detail="Snippet not found")
+    return {"message": f"Snippet {snippet_id} is no favorite anymore."}
+
+
+@app.post("/snippets/{snippet_id}/tags")
+def tag(
+    snippet_id: int,
+    tags: List[str],
+    remove: Optional[bool] = False,
+    session: Session = Depends(get_session),
+):
+    repo = DBSnippetRepo(session)
+    try:
+        repo.tag(snippet_id, *tags, remove=remove)
+    except SnippetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        "message": f"{'Removed' if remove else 'Added'} tags {tags} for snippet with id {snippet_id}."
+    }
