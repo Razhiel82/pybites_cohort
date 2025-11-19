@@ -2,10 +2,10 @@ from typing import List, Optional
 
 from decouple import config
 from fastapi import Depends, FastAPI, HTTPException
-from sqlmodel import Session, create_engine
+from sqlmodel import Session, create_engine, select
 
 from pybites_cohort.exceptions import SnippetNotFoundError
-from pybites_cohort.models import Language
+from pybites_cohort.models import Language, Snippet, Tag
 from pybites_cohort.repo import DBSnippetRepo
 
 DB_USER = config("DB_USER")
@@ -25,19 +25,33 @@ def get_session():
 app = FastAPI()
 
 
-@app.get("/")
-def root():
-    return {"message": "Snipster API is alive!"}
-
-
-@app.get("/snippets/")
-def list(session: Session = Depends(get_session)):
+@app.get("/snippets/", response_model=List[Snippet])
+def list_snippets(session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
     return repo.list()
 
 
+@app.post("/snippets/")
+def add_snippet(snippet_data: Snippet, session: Session = Depends(get_session)):
+    repo = DBSnippetRepo(session)
+
+    # Tags neu oder bereits vorhanden verknüpfen
+    managed_tags = []
+    for tag in snippet_data.tags:
+        existing_tag = session.exec(select(Tag).where(Tag.name == tag.name)).first()
+        if existing_tag:
+            managed_tags.append(existing_tag)
+        else:
+            managed_tags.append(tag)  # Neue Tags werden hinzugefügt
+
+    snippet_data.tags = managed_tags
+
+    repo.add(snippet_data)
+    return {"message": f"Snippet '{snippet_data.title}' added with tags."}
+
+
 @app.delete("/snippets/{snippet_id}")
-def delete(snippet_id: int, session: Session = Depends(get_session)):
+def delete_snippets(snippet_id: int, session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
     snippet = repo.delete(snippet_id)
     if snippet is None:
@@ -46,7 +60,7 @@ def delete(snippet_id: int, session: Session = Depends(get_session)):
 
 
 @app.get("/snippets/search")
-def search(
+def search_snippets(
     title: str,
     language: Optional[Language] = None,
     session: Session = Depends(get_session),
@@ -59,7 +73,7 @@ def search(
 
 
 @app.get("/snippets/{snippet_id}")
-def get(snippet_id: int, session: Session = Depends(get_session)):
+def get_snippets(snippet_id: int, session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
     snippet = repo.get(snippet_id)
     if snippet is None:
@@ -68,7 +82,7 @@ def get(snippet_id: int, session: Session = Depends(get_session)):
 
 
 @app.post("/snippets/{snippet_id}/fav_on")
-def fav_on(snippet_id: int, session: Session = Depends(get_session)):
+def select_favorite(snippet_id: int, session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
     snippet = repo.favorite_on(snippet_id)
     if snippet is None:
@@ -77,7 +91,7 @@ def fav_on(snippet_id: int, session: Session = Depends(get_session)):
 
 
 @app.post("/snippets/{snippet_id}/fav_off")
-def fav_off(snippet_id: int, session: Session = Depends(get_session)):
+def deselect_favorite(snippet_id: int, session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
     snippet = repo.favorite_off(snippet_id)
     if snippet is None:
@@ -86,10 +100,10 @@ def fav_off(snippet_id: int, session: Session = Depends(get_session)):
 
 
 @app.post("/snippets/{snippet_id}/tags")
-def tag(
+def tagging(
     snippet_id: int,
     tags: List[str],
-    remove: Optional[bool] = False,
+    remove: bool = False,
     session: Session = Depends(get_session),
 ):
     repo = DBSnippetRepo(session)

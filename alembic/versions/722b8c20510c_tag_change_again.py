@@ -1,16 +1,16 @@
-"""latest db changes
+"""tag change again
 
-Revision ID: 257e30585ca9
-Revises: 01e28756f35c
-Create Date: 2025-11-06 14:21:43.968253
+Revision ID: 722b8c20510c
+Revises: fd23493cdd64
+Create Date: 2025-11-18 00:23:51.633864
 
 """
 
 from typing import Sequence, Union
 
 # revision identifiers, used by Alembic.
-revision: str = "257e30585ca9"
-down_revision: Union[str, Sequence[str], None] = "01e28756f35c"
+revision: str = "722b8c20510c"
+down_revision: Union[str, Sequence[str], None] = "fd23493cdd64"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

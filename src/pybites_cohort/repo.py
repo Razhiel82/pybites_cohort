@@ -3,11 +3,17 @@ from abc import ABC, abstractmethod
 # from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
+from sqlalchemy import event
+from sqlalchemy.orm import selectinload, subqueryload
+from sqlmodel import Session, select
 
 from .exceptions import SnippetNotFoundError
 from .models import Language, Snippet, Tag
+
+
+@event.listens_for(Session, "after_flush")
+def delete_orphan_tags(session, flush_context):
+    session.query(Tag).filter(~Tag.snippets.any()).delete(synchronize_session=False)
 
 
 class SnippetRepository(ABC):  # pragma : no cover
@@ -141,10 +147,11 @@ class DBSnippetRepo(SnippetRepository):
         self.session.commit()
 
     def list(self, favorite: bool | None = None):
-        query = select(Snippet)
+        query = select(Snippet).options(subqueryload(Snippet.tags))
         if favorite:
             query = query.where(Snippet.favorite)
-        return self.session.exec(query).all()
+        result = self.session.exec(query)
+        return result.unique().all()
 
     def get(self, snippet_id: int) -> Snippet | None:
         stmt = (
@@ -191,18 +198,22 @@ class DBSnippetRepo(SnippetRepository):
         if not snippet:
             raise SnippetNotFoundError(f"Snippet with id {snippet_id} not found")
 
-        existing_tag_names = {tag.name for tag in snippet.tags}
         if remove:
-            # Tags zum Entfernen finden
-            to_remove = [tag for tag in snippet.tags if tag.name in tags]
-            for tag in to_remove:
-                snippet.tags.remove(tag)  # Entfernt Beziehung
+            for tag in [t for t in snippet.tags if t.name in tags]:
+                snippet.tags.remove(tag)
+
         else:
+            existing_tag_names = {tag.name for tag in snippet.tags}
             for tag_name in tags:
                 if tag_name not in existing_tag_names:
-                    new_tag = Tag(name=tag_name)
-                    snippet.tags.append(new_tag)
-                    existing_tag_names.add(tag_name)
+                    existing_tag = self.session.exec(
+                        select(Tag).where(Tag.name == tag_name)
+                    ).first()
+                    if existing_tag:
+                        snippet.tags.append(existing_tag)
+                    else:
+                        new_tag = Tag(name=tag_name)
+                        snippet.tags.append(new_tag)
 
         if sort:
             snippet.tags.sort(key=lambda tag: tag.name)

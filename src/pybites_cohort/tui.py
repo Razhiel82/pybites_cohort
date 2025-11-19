@@ -2,13 +2,13 @@ from decouple import config
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal
 from textual.coordinate import Coordinate
 from textual.reactive import reactive
 from textual.widgets import Button, DataTable, Input, OptionList, Static
 from textual.widgets.option_list import Option
 
-from pybites_cohort.exceptions import SnippetNotFoundError
+from pybites_cohort.exceptions import NoMatches, SnippetNotFoundError
 from pybites_cohort.models import Language, Snippet
 from pybites_cohort.repo import DBSnippetRepo
 
@@ -31,7 +31,7 @@ class Snipster(App):
     show_delete_inputs = reactive(False)
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
+        yield Horizontal(
             Button("Add Snippet", id="add"),
             Button("List Snippets", id="list"),
             Button("Delete Snippet", id="delete"),
@@ -39,7 +39,7 @@ class Snipster(App):
             id="main_menu",
         )
         yield Static("", id="status")
-        yield Vertical(id="content_area")
+        yield Horizontal(id="content_area")
 
     def clear_content_area(self) -> None:
         content = self.query_one("#content_area")
@@ -48,14 +48,14 @@ class Snipster(App):
             child.remove()
 
     @on(OptionList.OptionSelected)
-    def language_selected(self, event: OptionList.OptionSelected) -> None:
+    async def language_selected(self, event: OptionList.OptionSelected) -> None:
         selected_language_text = event.option.prompt
         self.selected_language = selected_language_text
         status = self.query_one("#status", Static)
         status.update(f"Language selected: {selected_language_text}")
 
     @on(Button.Pressed, "#add")
-    def add_snippet(self) -> None:
+    async def add_snippet(self) -> None:
         self.clear_content_area()
         content = self.query_one("#content_area")
         self.show_add_inputs = not self.show_add_inputs
@@ -76,7 +76,7 @@ class Snipster(App):
             content.mount(Button("Submit", id="submit"))
 
     @on(Button.Pressed, "#submit")
-    def submit_snippet(self) -> None:
+    async def submit_snippet(self) -> None:
         title_input = self.query_one("#title", Input)
         code_input = self.query_one("#code", Input)
         description_input = self.query_one("#description", Input)
@@ -108,19 +108,6 @@ class Snipster(App):
         if tags_list:
             repo.tag(snippet.id, *tags_list)
 
-        # Hier bauen wir ein Snippet-Objekt auf und speichern es in DB
-        session = get_session()
-        repo = DBSnippetRepo(session)
-
-        snippet = Snippet(
-            title=title,
-            code=code,
-            description=description,
-            language=language_enum,
-            favorite=False,
-        )
-        repo.add(snippet)
-
         status = self.query_one("#status", Static)
         status.update(f"Snippet '{title}' added.")
 
@@ -134,7 +121,7 @@ class Snipster(App):
         self.query_one("#tags").remove()
 
     @on(Button.Pressed, "#list")
-    def list_snippets(self) -> None:
+    async def list_snippets(self) -> None:
         self.clear_content_area()
         content = self.query_one("#content_area")
         session = get_session()
@@ -145,11 +132,24 @@ class Snipster(App):
         content.mount(table)
         self.mount(table, after=self.query_one("#status"))
 
-        table.add_columns("ID", "Title", "Language", "Favorite")
+        table.add_columns("ID", "Title", "Language", "Favorite", "Tags")
+
+        seen = set()
+        unique_snippets = []
         for snippet in snippets:
+            if snippet.id not in seen:
+                unique_snippets.append(snippet)
+                seen.add(snippet.id)
+
+        for snippet in unique_snippets:
             favorite_icon = "⭐" if snippet.favorite else ""
+            tags = ", ".join(snippet.tag_list)
             table.add_row(
-                str(snippet.id), snippet.title, snippet.language.value, favorite_icon
+                str(snippet.id),
+                snippet.title,
+                snippet.language.value,
+                favorite_icon,
+                tags,
             )
         table.cursor_type = "row"
         table.zebra_stripes = True
@@ -180,37 +180,45 @@ class Snipster(App):
         table.update_cell(fav_coord, fav_icon)
 
     @on(Button.Pressed, "#delete")
-    def delete_snippet(self) -> None:
-        self.clear_content_area()
+    async def delete_snippet(self) -> None:
         content = self.query_one("#content_area")
         self.show_delete_inputs = not self.show_delete_inputs
+
         if self.show_delete_inputs:
-            content.mount(Input(placeholder="Snippet ID", id="snippet_id"))
-            content.mount(Button("Confirm Delete", id="confirm_delete"))
+            self.clear_content_area()
+            await content.mount(Input(placeholder="Snippet ID", id="snippet_id"))
+            await content.mount(Button("Confirm Delete", id="confirm_delete"))
         else:
+            widgets = self.query("#snippet_id")
+            if not widgets:
+                status = self.query_one("#status", Static)
+                status.update("Snippet ID input not found. Please try again.")
+                return
+            snippet_id_input = widgets[0]
+
             try:
-                snippet_id_input = self.query_one("#snippet_id", Input)
                 snippet_id = int(snippet_id_input.value)
-                with get_session() as session:
-                    repo = DBSnippetRepo(session)
-                    snippet = session.get(Snippet, snippet_id)
-                    if snippet is None:
-                        raise SnippetNotFoundError(
-                            f"Snippet with id {snippet_id} not found"
-                        )
-                    repo.delete(snippet_id)
-                # Meldung bei Erfolg
-                status = self.query_one("#status", Static)
-                status.update(f"Snippet with ID {snippet_id} deleted.")
-            except SnippetNotFoundError as e:
-                status = self.query_one("#status", Static)
-                status.update(str(e))
             except ValueError:
                 status = self.query_one("#status", Static)
                 status.update("Invalid snippet ID entered. Please enter a number.")
+                return
+
+            with get_session() as session:
+                repo = DBSnippetRepo(session)
+                snippet = session.get(Snippet, snippet_id)
+                if snippet is None:
+                    status = self.query_one("#status", Static)
+                    status.update(f"Snippet with id {snippet_id} not found")
+                    return
+                repo.delete(snippet_id)
+                status = self.query_one("#status", Static)
+                status.update(f"Snippet with ID {snippet_id} deleted.")
 
     @on(Button.Pressed, "#confirm_delete")
-    def confirm_delete_snippet(self) -> None:
+    async def confirm_delete_snippet(self) -> None:
+        content = self.query_one("#content_area")
+        for child in list(content.children):
+            await child.remove()
         snippet_id_input = self.query_one("#snippet_id", Input)
         try:
             snippet_id = int(snippet_id_input.value)
@@ -218,7 +226,14 @@ class Snipster(App):
             status = self.query_one("#status", Static)
             status.update("Ungültige ID. Bitte geben Sie eine Zahl ein.")
             return
-
+        except NoMatches:
+            widgets = self.query("#snippet_id", Input)
+            if not widgets:
+                status = self.query_one("#status", Static)
+                status.update("Snippet ID input not found. Please try again.")
+                return
+            snippet_id_input = widgets[0]
+            snippet_id = int(snippet_id_input.value)
         try:
             with get_session() as session:
                 repo = DBSnippetRepo(session)
@@ -237,7 +252,7 @@ class Snipster(App):
             status.update(str(e))
 
     @on(Button.Pressed, "#exit")
-    def exit_app(self) -> None:
+    async def exit_app(self) -> None:
         self.query_one("#status", Static).update("Exiting...")
         self.exit()
         if self.show_add_inputs:
