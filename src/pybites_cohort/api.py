@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from decouple import config
 from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, create_engine, select
 
 from pybites_cohort.exceptions import SnippetNotFoundError
@@ -27,8 +28,9 @@ app = FastAPI()
 
 @app.get("/snippets/", response_model=List[Snippet])
 def list_snippets(session: Session = Depends(get_session)):
-    repo = DBSnippetRepo(session)
-    return repo.list()
+    query = select(Snippet).options(selectinload(Snippet.tags))
+    snippets = session.exec(query).all()
+    return snippets
 
 
 @app.post("/snippets/")

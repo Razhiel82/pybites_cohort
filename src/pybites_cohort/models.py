@@ -30,6 +30,7 @@ class SnippetTagLink(SQLModel, table=True):
 
     __table_args__ = (
         UniqueConstraint("snippet_id", "tag_id", name="unique_snippet_tag"),
+        {"extend_existing": True},
     )
 
 

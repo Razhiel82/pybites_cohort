@@ -2,7 +2,7 @@ from decouple import config
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.reactive import reactive
 from textual.widgets import Button, DataTable, Input, OptionList, Static
@@ -39,7 +39,7 @@ class Snipster(App):
             id="main_menu",
         )
         yield Static("", id="status")
-        yield Horizontal(id="content_area")
+        yield Vertical(id="content_area")
 
     def clear_content_area(self) -> None:
         content = self.query_one("#content_area")
