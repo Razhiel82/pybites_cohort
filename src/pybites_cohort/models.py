@@ -1,27 +1,32 @@
 from enum import Enum
+from typing import List, Optional
 
 from decouple import config
+from sqlalchemy import Column, ForeignKey, UniqueConstraint
 from sqlmodel import (
     Field,
     Relationship,
     Session,
     SQLModel,
-    UniqueConstraint,
     create_engine,
     select,
 )
 
 
 class Language(str, Enum):
-    python: str = "py"
-    javascript: str = "js"
-    rust: str = "rs"
-    golang: str = "go"
+    python = "py"
+    javascript = "js"
+    rust = "rs"
+    golang = "go"
 
 
 class SnippetTagLink(SQLModel, table=True):
-    snippet_id: int = Field(foreign_key="snippet.id", primary_key=True)
-    tag_id: int = Field(foreign_key="tag.id", primary_key=True)
+    snippet_id: int = Field(
+        sa_column=Column(ForeignKey("snippet.id", ondelete="CASCADE"), primary_key=True)
+    )
+    tag_id: int = Field(
+        sa_column=Column(ForeignKey("tag.id", ondelete="CASCADE"), primary_key=True)
+    )
 
     __table_args__ = (
         UniqueConstraint("snippet_id", "tag_id", name="unique_snippet_tag"),
@@ -29,30 +34,33 @@ class SnippetTagLink(SQLModel, table=True):
 
 
 class Tag(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    snippets: list["Snippet"] = Relationship(
+    snippets: List["Snippet"] = Relationship(
         back_populates="tags", link_model=SnippetTagLink
     )
 
 
 class Snippet(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     code: str
     description: str
     favorite: bool = Field(default=False)
     language: Language = Field(default=Language.python)
-    tags: list[Tag] = Relationship(back_populates="snippets", link_model=SnippetTagLink)
+    tags: List[Tag] = Relationship(
+        back_populates="snippets",
+        link_model=SnippetTagLink,
+        sa_relationship_kwargs={"cascade": "all, delete"},
+    )
 
     @property
-    def tag_list(self) -> list[str]:
+    def tag_list(self) -> List[str]:
         return sorted(tag.name for tag in self.tags)
 
     @classmethod
     def create(cls, **kwargs):
-        snippet = cls(**kwargs)
-        return snippet
+        return cls(**kwargs)
 
 
 if __name__ == "__main__":  # pragma: no cover

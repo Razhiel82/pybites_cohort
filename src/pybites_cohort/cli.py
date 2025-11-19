@@ -1,4 +1,3 @@
-import re
 from typing import List, Optional
 
 import typer
@@ -24,7 +23,7 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
 def get_session():
-    engine = create_engine(DATABASE_URL, echo=False)
+    engine = create_engine(DATABASE_URL, echo=True)
     return Session(engine)
 
 
@@ -69,15 +68,10 @@ def list(favorite: bool = False):
     table.add_column("Tags")
     table.add_column("Favorite")
     for snippet in snippets:
-        all_tags = []
         syntax = Syntax(
             snippet.code, snippet.language.name, theme="monokai", line_numbers=True
         )
-        for tag_str in snippet.tag_list:
-            tags = re.findall(r"\[(.*?)\]", tag_str)
-            for tag_group in tags:
-                all_tags.extend([t.strip() for t in tag_group.split(",")])
-        tag_list = ", ".join(all_tags)
+        tag_list = ", ".join(snippet.tag_list)
         table.add_row(
             str(snippet.id),
             snippet.title,

@@ -2,11 +2,10 @@ from logging.config import fileConfig
 
 from decouple import config
 from sqlalchemy import engine_from_config, pool
-from sqlmodel import SQLModel
 
+# from sqlmodel import SQLModel
 from alembic import context
-
-# from src.pybites_cohort.models import *
+from src.pybites_cohort.models import SQLModel
 
 DB_USER = config("DB_USER")
 DB_PASS = config("DB_PASS")
