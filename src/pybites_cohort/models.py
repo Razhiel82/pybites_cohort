@@ -38,8 +38,10 @@ class Tag(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     snippets: List["Snippet"] = Relationship(
-        back_populates="tags", link_model=SnippetTagLink
+        link_model=SnippetTagLink, sa_relationship_kwargs={"back_populates": "tags"}
     )
+
+    __table_args__ = {"extend_existing": True}
 
 
 class Snippet(SQLModel, table=True):
@@ -50,10 +52,11 @@ class Snippet(SQLModel, table=True):
     favorite: bool = Field(default=False)
     language: Language = Field(default=Language.python)
     tags: List[Tag] = Relationship(
-        back_populates="snippets",
         link_model=SnippetTagLink,
-        sa_relationship_kwargs={"cascade": "all, delete"},
+        sa_relationship_kwargs={"back_populates": "snippets", "cascade": "all, delete"},
     )
+
+    __table_args__ = {"extend_existing": True}
 
     @property
     def tag_list(self) -> List[str]:

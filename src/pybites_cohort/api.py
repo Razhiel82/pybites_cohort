@@ -2,7 +2,6 @@ from typing import List, Optional
 
 from decouple import config
 from fastapi import Depends, FastAPI, HTTPException
-from sqlalchemy.orm import selectinload
 from sqlmodel import Session, create_engine, select
 
 from pybites_cohort.exceptions import SnippetNotFoundError
@@ -28,23 +27,26 @@ app = FastAPI()
 
 @app.get("/snippets/", response_model=List[Snippet])
 def list_snippets(session: Session = Depends(get_session)):
-    query = select(Snippet).options(selectinload(Snippet.tags))
-    snippets = session.exec(query).all()
-    return snippets
+    repo = DBSnippetRepo(session)
+    return repo.list()
 
 
-@app.post("/snippets/")
+@app.post("/snippets/", status_code=201)
 def add_snippet(snippet_data: Snippet, session: Session = Depends(get_session)):
     repo = DBSnippetRepo(session)
 
-    # Tags neu oder bereits vorhanden verknüpfen
+    # Link new or existing tags
     managed_tags = []
-    for tag in snippet_data.tags:
-        existing_tag = session.exec(select(Tag).where(Tag.name == tag.name)).first()
+    for tag_from_request in snippet_data.tags:
+        existing_tag = session.exec(
+            select(Tag).where(Tag.name == tag_from_request.name)
+        ).first()
         if existing_tag:
             managed_tags.append(existing_tag)
         else:
-            managed_tags.append(tag)  # Neue Tags werden hinzugefügt
+            # If the tag is new, add it to the session so it gets an ID upon commit
+            session.add(tag_from_request)
+            managed_tags.append(tag_from_request)
 
     snippet_data.tags = managed_tags
 

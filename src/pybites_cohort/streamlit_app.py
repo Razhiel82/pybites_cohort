@@ -9,9 +9,10 @@ st.title("Snipster")
 st.sidebar.header("Options")
 
 main_page = st.Page("main_page.py", title="Main Page", icon="🏠")
-list = st.Page("list.py", title="List Snippets", icon="📄")
-add = st.Page("add.py", title="Add Snippets", icon="➕")
+list_page = st.Page("list.py", title="List Snippets", icon="📄")
+add_page = st.Page("add.py", title="Add Snippets", icon="➕")
+delete_page = st.Page("delete.py", title="Delete Snippets", icon="❌")
 
-pg = st.navigation([main_page, list, add])
+pg = st.navigation([main_page, list_page, add_page, delete_page])
 
 pg.run()
