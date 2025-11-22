@@ -8,9 +8,33 @@ API_URL = config("API_URL")
 st.markdown("# 📄 List Snippets")
 st.sidebar.markdown("# 📄 List Snippets")
 
-response = httpx.get(f"{API_URL}/snippets/")
-data = response.json()
+try:
+    response = httpx.get(f"{API_URL}/snippets/")
+    response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+    data = response.json()
 
-df = pd.DataFrame(data)
+    # Process data to make tags readable
+    for snippet in data:
+        # Extract tag names and join them into a comma-separated string
+        tag_names = [tag["name"] for tag in snippet.get("tags", [])]
+        snippet["tags"] = ", ".join(sorted(tag_names))
 
-st.dataframe(df, hide_index=True)
+    df = pd.DataFrame(data)
+
+    # Optionally, select and reorder columns for a cleaner display
+    if not df.empty:
+        display_columns = [
+            "id",
+            "title",
+            "language",
+            "tags",
+            "favorite",
+            "description",
+            "code",
+        ]
+        # Filter out columns that might not exist in the DataFrame
+        existing_columns = [col for col in display_columns if col in df.columns]
+        st.dataframe(df[existing_columns], hide_index=True)
+
+except httpx.RequestError as e:
+    st.error(f"Connection to the API failed: {e}")

@@ -1,6 +1,3 @@
-import os
-import sys
-
 import httpx
 import streamlit as st
 from decouple import config
@@ -9,17 +6,15 @@ from pybites_cohort.models import Language, Snippet, Tag
 
 API_URL = config("API_URL")
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
 st.markdown("### ➕ Add Snippet")
 st.sidebar.markdown("# ➕ Add Snippet")
 
 with st.form(key="add_snippet_form"):
-    title = st.text_input("Titel")
+    title = st.text_input("Title")
     code = st.text_area("Code")
     description = st.text_area("Description")
     language = st.selectbox("Language", [lang.name for lang in Language])
-    tags_str = st.text_input("Tags (comma separated)")
+    tags_str = st.text_input("Tags (comma-separated)")
     favorite = st.radio("Favorite", options=[True, False], index=1)
 
     submit = st.form_submit_button("Add Snippet")
@@ -34,12 +29,12 @@ if submit:
         tags=tags,
         favorite=favorite,
     )
-    # JSON-serialisierbare Darstellung erzeugen
+    # Create a JSON-serializable representation
     payload = snippet.model_dump()
-    # Sende POST Anfrage an API
+    # Send POST request to API
     response = httpx.post(f"{API_URL}/snippets/", json=payload)
 
-    if response.status_code == 200:
-        st.success("Snippet erfolgreich hinzugefügt!")
+    if response.status_code == 201:
+        st.success("Snippet added successfully!")
     else:
-        st.error(f"Fehler beim Hinzufügen: {response.text}")
+        st.error(f"Error adding snippet: {response.text}")
