@@ -7,8 +7,8 @@ from sqlalchemy import event
 from sqlalchemy.orm import selectinload, subqueryload
 from sqlmodel import Session, select
 
-from .exceptions import SnippetNotFoundError
-from .models import Language, Snippet, Tag
+from pybites_cohort.exceptions import SnippetNotFoundError
+from pybites_cohort.models import Language, Snippet, Tag
 
 
 @event.listens_for(Session, "after_flush")
