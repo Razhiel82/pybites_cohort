@@ -27,6 +27,10 @@ def get_session():
     return Session(engine)
 
 
+def comma_separated_list(value: str) -> List[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 @app.command()
 def add(
     title: str,
@@ -34,11 +38,14 @@ def add(
     description: str = "",
     language: Language = Language.python,
     favorite: bool = False,
-    tags: Optional[list[str]] = typer.Option(None),
+    tags: Optional[str] = typer.Option(
+        None, callback=comma_separated_list, help="Comma separated list of tags"
+    ),
 ):
     session = get_session()
     repo = DBSnippetRepo(session)
-    tag_objs = [Tag(name=tag) for tag in (tags or [])]
+    tags_list = tags or []
+    tag_objs = [Tag(name=tag) for tag in tags_list]
     snippet = Snippet(
         title=title,
         code=code,
@@ -99,6 +106,7 @@ def get(snippet_id: int):
         table.add_column("Description")
         table.add_column("Language")
         table.add_column("Tags")
+        table.add_column("Favorite")
         table.add_row(
             str(snippet.id),
             snippet.title,
@@ -106,6 +114,7 @@ def get(snippet_id: int):
             snippet.description,
             snippet.language.name,
             tag_list,
+            "⭐" if snippet.favorite else "",
         )
         console = Console()
         console.print(table, justify="left")

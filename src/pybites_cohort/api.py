@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Generator, List, Optional
 
 from decouple import config
 from fastapi import Depends, FastAPI, HTTPException
@@ -7,6 +7,7 @@ from sqlmodel import Session, create_engine, select
 from pybites_cohort.exceptions import SnippetNotFoundError
 from pybites_cohort.models import Language, Snippet, Tag
 from pybites_cohort.repo import DBSnippetRepo
+from pybites_cohort.schemas import SnippetCreate, SnippetRead
 
 DB_USER = config("DB_USER")
 DB_PASS = config("DB_PASS")
@@ -16,42 +17,51 @@ DB_NAME = config("DB_NAME")
 
 DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+engine = create_engine(DATABASE_URL, echo=False)
 
-def get_session():
-    engine = create_engine(DATABASE_URL, echo=False)
-    return Session(engine)
+
+def get_session() -> Generator[Session, None, None]:
+    with Session(engine) as session:
+        yield session
 
 
 app = FastAPI()
 
 
-@app.get("/snippets/", response_model=List[Snippet])
+@app.get("/snippets/", response_model=List[SnippetRead])
 def list_snippets(session: Session = Depends(get_session)):
-    repo = DBSnippetRepo(session)
-    return repo.list()
+    statement = select(Snippet)
+    snippets = session.exec(statement).all()
+    return snippets
 
 
 @app.post("/snippets/", status_code=201)
-def add_snippet(snippet_data: Snippet, session: Session = Depends(get_session)):
-    repo = DBSnippetRepo(session)
+def add_snippet(snippet_data: SnippetCreate, session: Session = Depends(get_session)):
+    # Snippet erzeugen und ID erzeugen
+    snippet = Snippet(
+        title=snippet_data.title,
+        code=snippet_data.code,
+        description=snippet_data.description,
+        favorite=snippet_data.favorite,
+        language=Language(snippet_data.language),
+    )
+    session.add(snippet)
+    session.flush()  # wichtig für snippet.id
 
-    # Link new or existing tags
     managed_tags = []
-    for tag_from_request in snippet_data.tags:
-        existing_tag = session.exec(
-            select(Tag).where(Tag.name == tag_from_request.name)
-        ).first()
-        if existing_tag:
-            managed_tags.append(existing_tag)
-        else:
-            # If the tag is new, add it to the session so it gets an ID upon commit
-            session.add(tag_from_request)
-            managed_tags.append(tag_from_request)
+    for tag_name in snippet_data.tags:
+        tag = session.exec(select(Tag).where(Tag.name == tag_name)).first()
+        if not tag:
+            tag = Tag(name=tag_name)
+            session.add(tag)
+            session.commit()
+        managed_tags.append(tag)
 
-    snippet_data.tags = managed_tags
+    snippet.tags = managed_tags
+    session.commit()
+    session.refresh(snippet)
 
-    repo.add(snippet_data)
-    return {"message": f"Snippet '{snippet_data.title}' added with tags."}
+    return snippet
 
 
 @app.delete("/snippets/{snippet_id}")

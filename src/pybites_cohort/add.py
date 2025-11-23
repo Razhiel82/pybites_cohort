@@ -2,7 +2,7 @@ import httpx
 import streamlit as st
 from decouple import config
 
-from pybites_cohort.models import Language, Snippet, Tag
+from pybites_cohort.models import Language
 
 API_URL = config("API_URL")
 
@@ -20,21 +20,13 @@ with st.form(key="add_snippet_form"):
     submit = st.form_submit_button("Add Snippet")
 
 if submit:
-    tags = [Tag(name=tag.strip()) for tag in tags_str.split(",") if tag.strip()]
-    snippet = Snippet(
-        title=title,
-        code=code,
-        description=description,
-        language=Language[language],
-        tags=tags,
-        favorite=favorite,
-    )
-    # Create a JSON-serializable representation
-    payload = snippet.model_dump()
-    # Send POST request to API
+    tag_names = [tag.strip() for tag in tags_str.split(",") if tag.strip()]
+    payload = {
+        "title": title,
+        "code": code,
+        "description": description,
+        "language": Language[language].value,  # z.B. "py"
+        "favorite": favorite,
+        "tags": tag_names,  # Liste von Strings
+    }
     response = httpx.post(f"{API_URL}/snippets/", json=payload)
-
-    if response.status_code == 201:
-        st.success("Snippet added successfully!")
-    else:
-        st.error(f"Error adding snippet: {response.text}")
