@@ -1,8 +1,8 @@
-"""tags unique
+"""initial migration
 
-Revision ID: 9d05f792533a
-Revises: e29ee2361b8d
-Create Date: 2025-11-13 23:16:25.800951
+Revision ID: bfdd0e067d2b
+Revises:
+Create Date: 2025-11-17 23:44:51.566023
 
 """
 
@@ -14,8 +14,8 @@ import sqlmodel
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "9d05f792533a"
-down_revision: Union[str, Sequence[str], None] = "e29ee2361b8d"
+revision: str = "bfdd0e067d2b"
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -47,14 +47,8 @@ def upgrade() -> None:
         "snippettaglink",
         sa.Column("snippet_id", sa.Integer(), nullable=False),
         sa.Column("tag_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["snippet_id"],
-            ["snippet.id"],
-        ),
-        sa.ForeignKeyConstraint(
-            ["tag_id"],
-            ["tag.id"],
-        ),
+        sa.ForeignKeyConstraint(["snippet_id"], ["snippet.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tag_id"], ["tag.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("snippet_id", "tag_id"),
         sa.UniqueConstraint("snippet_id", "tag_id", name="unique_snippet_tag"),
     )

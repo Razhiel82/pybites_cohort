@@ -1,4 +1,3 @@
-import re
 from typing import List, Optional
 
 import typer
@@ -24,8 +23,12 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 
 def get_session():
-    engine = create_engine(DATABASE_URL, echo=False)
+    engine = create_engine(DATABASE_URL, echo=True)
     return Session(engine)
+
+
+def comma_separated_list(value: str) -> List[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 @app.command()
@@ -35,11 +38,14 @@ def add(
     description: str = "",
     language: Language = Language.python,
     favorite: bool = False,
-    tags: Optional[list[str]] = typer.Option(None),
+    tags: Optional[str] = typer.Option(
+        None, callback=comma_separated_list, help="Comma separated list of tags"
+    ),
 ):
     session = get_session()
     repo = DBSnippetRepo(session)
-    tag_objs = [Tag(name=tag) for tag in (tags or [])]
+    tags_list = tags or []
+    tag_objs = [Tag(name=tag) for tag in tags_list]
     snippet = Snippet(
         title=title,
         code=code,
@@ -69,15 +75,10 @@ def list(favorite: bool = False):
     table.add_column("Tags")
     table.add_column("Favorite")
     for snippet in snippets:
-        all_tags = []
         syntax = Syntax(
             snippet.code, snippet.language.name, theme="monokai", line_numbers=True
         )
-        for tag_str in snippet.tag_list:
-            tags = re.findall(r"\[(.*?)\]", tag_str)
-            for tag_group in tags:
-                all_tags.extend([t.strip() for t in tag_group.split(",")])
-        tag_list = ", ".join(all_tags)
+        tag_list = ", ".join(snippet.tag_list)
         table.add_row(
             str(snippet.id),
             snippet.title,
@@ -105,6 +106,7 @@ def get(snippet_id: int):
         table.add_column("Description")
         table.add_column("Language")
         table.add_column("Tags")
+        table.add_column("Favorite")
         table.add_row(
             str(snippet.id),
             snippet.title,
@@ -112,6 +114,7 @@ def get(snippet_id: int):
             snippet.description,
             snippet.language.name,
             tag_list,
+            "⭐" if snippet.favorite else "",
         )
         console = Console()
         console.print(table, justify="left")
