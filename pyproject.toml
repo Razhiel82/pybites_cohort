@@ -1,25 +1,23 @@
 [project]
-name = "pybites-cohort"
-version = "0.2.0"
-description = "Add your description here"
+name = "snipster-tui"
+version = "v0.2.0"
+description = "snipster-tui is a terminal user interface (TUI) application for managing and browsing code snippets."
 readme = "README.md"
 authors = [
-    { name = "Razhiel", email = "your@email.com" }
+    { name = "Razhiel", email = "razhiel@gmx.net" }
 ]
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.17.1",
-    "fastapi[all]>=0.121.2",
     "psycopg2-binary>=2.9.11",
     "python-decouple>=3.8",
     "sqlmodel>=0.0.27",
-    "streamlit>=1.51.0",
     "textual>=6.6.0",
-    "typer>=0.20.0",
+
 ]
 
 [project.scripts]
-pybites-cohort = "pybites_cohort:main"
+snipster-tui = "snipster_tui:main"
 
 [build-system]
 requires = ["uv_build>=0.8.14,<0.9.0"]
@@ -30,8 +28,22 @@ dev = [
     "psycopg2-binary>=2.9.11",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+    "pytest-textual-snapshot>=1.1.0",
     "ruff>=0.14.1",
     "ty>=0.0.1a23",
+]
+
+streamlit = [
+    "streamlit>=1.51.0",
+]
+
+api = [
+    "fastapi[all]>=0.121.2",
+]
+
+cli = [
+    "typer>=0.20.0",
 ]
 
 [tool.poe.tasks]
