@@ -103,16 +103,20 @@ def test_add_and_list_snippets(engine, repo, example_snippets):
 
 
 @pytest.mark.parametrize("engine", ["memory"], indirect=True)
-def test_list_snippets_ui(engine, repo, example_snippets, snap_compare, mocker):
-    # Testdaten einfügen
+def test_list_snippets_ui(engine, repo, example_snippets, snap_compare, monkeypatch):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
     for snippet in example_snippets:
         repo.add(snippet)
     repo.session.commit()
 
+    def mock_get_session():
+        return repo.session
+
     async def click_list(pilot):
-        # Mock HIER anwenden (innerhalb snap_compare Context!)
-        mocker.patch("snipster_tui.tui.get_session", return_value=repo.session)
-        await pilot.press("#list")
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
         await pilot.pause()
 
     assert snap_compare(Snipster(), run_before=click_list)
@@ -120,7 +124,31 @@ def test_list_snippets_ui(engine, repo, example_snippets, snap_compare, mocker):
 
 def test_add_snippet_ui(snap_compare):
     async def click_add(pilot):
-        await pilot.press("#add")
+        await pilot.press("enter")
         await pilot.pause()
 
     assert snap_compare(Snipster(), run_before=click_add)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_delete_snippet_ui(engine, repo, example_snippets, snap_compare, monkeypatch):
+    for snippet in example_snippets:
+        repo.add(snippet)
+    repo.session.commit()
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_delete(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("1")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_delete)
