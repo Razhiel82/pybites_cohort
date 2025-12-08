@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from decouple import Config, RepositoryEnv
+from rich.syntax import Syntax
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
@@ -52,6 +53,7 @@ def get_session():
 class Snipster(App):
     show_add_inputs = reactive(False)
     show_delete_inputs = reactive(False)
+    show_edit_inputs = reactive(False)
 
     async def _auto_init_config(self) -> None:
         """Async Auto-Config Start (Thread-sicher)"""
@@ -62,6 +64,7 @@ class Snipster(App):
             Button("Add Snippet", id="add"),
             Button("List Snippets", id="list"),
             Button("Delete Snippet", id="delete"),
+            # Button("Edit Snippet", id="edit"),
             Button("Exit", id="exit", variant="error"),
             Button(
                 label="Init",
@@ -125,6 +128,27 @@ class Snipster(App):
             row_index = table.cursor_row
             snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
             await self.delete_selected_snippet(snippet_id)
+
+    async def edit_snippet(self, snippet_id: int) -> None:
+        """Direktes Edit aus Kontext-Menü"""
+        await self.toggle_edit_snippet()
+
+        self.call_later(self._load_snippet_direct, snippet_id)
+
+    async def _load_snippet_direct(self, snippet_id: int) -> None:
+        """Snippet direkt laden (nach DOM-Update)"""
+        edit_id_input = self.query_one("#edit_id", Input)
+        if edit_id_input:
+            edit_id_input.value = str(snippet_id)
+            self.call_later(self.load_snippet_for_edit)
+
+    async def action_edit_selected(self) -> None:
+        """E-Taste: Edit ausgewählte Zeile"""
+        table = self.query_one(DataTable)
+        if table.cursor_row is not None:
+            row_index = table.cursor_row
+            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
+            await self.edit_snippet(snippet_id)
 
     async def action_refresh_list(self) -> None:
         """Liste neu laden"""
@@ -214,15 +238,38 @@ class Snipster(App):
         table = DataTable()
         content.mount(table)
 
-        table.add_columns("ID", "Title", "Language", "Favorite", "Actions")
+        # Spalten mit renderable-Support:
+        table.add_columns(
+            "ID", "Title", "Code", "Description", "Language", "Favorite", "Actions"
+        )
 
         for snippet in snippets:
             favorite_icon = "⭐" if snippet.favorite else ""
-            table.add_row(  # Einfach ohne row_key!
+
+            # Rich Syntax für Code (kurz gehalten für TUI):
+            code_preview = Syntax(
+                snippet.code[:100] + "..." if len(snippet.code) > 100 else snippet.code,
+                str(snippet.language.value),  # "python", "rust", etc.
+                theme="monokai",
+                line_numbers=False,  # TUI: zu eng
+                word_wrap=True,
+                padding=(0, 1),
+            )
+
+            title_short = (
+                snippet.title[:25] + "..." if len(snippet.title) > 25 else snippet.title
+            )
+            desc_short = (
+                snippet.description[:25] + "..."
+                if len(snippet.description) > 25
+                else snippet.description
+            )
+
+            table.add_row(
                 str(snippet.id),
-                snippet.title[:30] + "..."
-                if len(snippet.title) > 30
-                else snippet.title,
+                title_short,
+                code_preview,  # ← Rich Syntax!
+                desc_short,
                 snippet.language.value,
                 favorite_icon,
                 "⭐/🗑️/✏️",
@@ -234,7 +281,7 @@ class Snipster(App):
 
         status = self.query_one("#status", Static)
         status.update(
-            "↑↓=Nav, Enter=Action-Menü, [yellow]F=Favorite[/yellow], [red]D=Delete[/red], [orange]E=Edit(comming soon!)[/orange], [green]Ctrl+R=Refresh[/green"
+            "↑↓=Nav, Enter=Action-Menu, [yellow]F=Favorite[/yellow], [red]D=Delete[/red], [orange]E=Edit[/orange], [green]Ctrl+R=Refresh[/green]"
         )
 
     @on(DataTable.RowSelected)
@@ -355,6 +402,126 @@ class Snipster(App):
                 status.update(f"✅ Snippet ID {snippet_id} deleted!")
         except SnippetNotFoundError as e:
             status.update(str(e))
+
+    @on(Button.Pressed, "#edit")
+    async def toggle_edit_snippet(self) -> None:
+        content = self.query_one("#content_area")
+        self.show_edit_inputs = not self.show_edit_inputs
+
+        if self.show_edit_inputs:
+            self.clear_content_area()
+
+            content = self.query_one("#content_area")
+
+            content.mount(Input(placeholder="Snippet ID", id="edit_id"))
+            content.mount(Button("Load Snippet", id="load_edit"))
+            content.mount(Input(placeholder="Title", id="edit_title", disabled=True))
+            content.mount(Input(placeholder="Code", id="edit_code", disabled=True))
+            content.mount(
+                Input(placeholder="Description", id="edit_desc", disabled=True)
+            )
+
+            options = [Option(lang.value, id=f"lang_{lang.name}") for lang in Language]
+            lang_list = OptionList(
+                *options,
+                id="edit_language",
+                disabled=True,
+            )
+
+            content.mount(lang_list)
+
+            content.mount(
+                Horizontal(
+                    Button(
+                        "Update", id="update_snippet", variant="primary", disabled=True
+                    ),
+                    Button("Cancel", id="cancel_edit", variant="error"),
+                    id="edit_actions",  # ✅ ID hinzufügen!
+                )
+            )
+
+            self.query_one("#status", Static).update("Enter ID → Load → Edit → Update")
+        else:
+            self.clear_content_area()
+            self.show_edit_inputs = False
+
+    @on(Button.Pressed, "#load_edit")
+    async def load_snippet_for_edit(self) -> None:
+        """Snippet laden und Form aktivieren"""
+        snippet_id_input = self.query_one("#edit_id", Input)
+        try:
+            snippet_id = int(snippet_id_input.value)
+        except ValueError:
+            self.query_one("#status", Static).update("❌ Invalid ID!")
+            return
+
+        with get_session() as session:
+            repo = DBSnippetRepo(session)
+            snippet = repo.get(snippet_id)
+            if not snippet:
+                self.query_one("#status", Static).update(
+                    f"❌ Snippet {snippet_id} not found!"
+                )
+                return
+
+            # ✅ .value = ... statt .update()!
+            self.query_one("#edit_title", Input).value = snippet.title
+            self.query_one("#edit_code", Input).value = snippet.code
+            self.query_one("#edit_desc", Input).value = snippet.description
+
+            # Language: Erste passende Option finden
+            lang_list = self.query_one("#edit_language", OptionList)
+            for i, option in enumerate(lang_list.options):
+                if option.id == f"lang_{snippet.language.name}":
+                    lang_list.highlighted = i  # ✅ Index setzen!
+                    break
+
+            # Aktivieren
+            for widget_id in ["edit_title", "edit_code", "edit_desc"]:
+                self.query_one(f"#{widget_id}", Input).disabled = False
+            self.query_one("#edit_language", OptionList).disabled = False
+            self.query_one("#update_snippet", Button).disabled = False
+
+            self.query_one("#status", Static).update(f"✅ Loaded '{snippet.title}'")
+
+    @on(Button.Pressed, "#update_snippet")
+    async def update_snippet(self) -> None:
+        snippet_id = int(self.query_one("#edit_id", Input).value)
+        title = self.query_one("#edit_title", Input).value
+        code = self.query_one("#edit_code", Input).value
+        desc = self.query_one("#edit_desc", Input).value
+
+        lang_list = self.query_one("#edit_language", OptionList)
+        index = lang_list.highlighted
+        lang_option = lang_list.options[index] if index is not None else None
+        language = (
+            Language[lang_option.id.replace("lang_", "")]
+            if lang_option
+            else Language.python
+        )
+
+        # Update-Snippet
+        update_snippet = Snippet(
+            id=snippet_id,  # ID bleibt!
+            title=title,
+            code=code,
+            description=desc,
+            language=language,
+        )
+
+        with get_session() as session:
+            repo = DBSnippetRepo(session)
+            repo.update(update_snippet)
+
+        self.query_one("#status", Static).update(f"✅ Snippet {snippet_id} updated!")
+        self.show_edit_inputs = False
+        self.clear_content_area()
+        await self.refresh_table()
+
+    @on(Button.Pressed, "#cancel_edit")
+    async def cancel_edit(self) -> None:
+        self.show_edit_inputs = False
+        self.clear_content_area()
 
     @on(Button.Pressed, "#exit")
     async def exit_app(self) -> None:

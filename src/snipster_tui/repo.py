@@ -44,6 +44,10 @@ class SnippetRepository(ABC):  # pragma : no cover
     def list_favorites(self) -> Sequence[Snippet]:
         pass
 
+    @abstractmethod
+    def update(self, snippet: Snippet) -> None:
+        pass
+
 
 class InMemorySnippetRepo(SnippetRepository):
     def __init__(self):
@@ -103,6 +107,15 @@ class InMemorySnippetRepo(SnippetRepository):
     def list_favorites(self) -> Sequence[Snippet]:
         return [snippet for snippet in self._data.values() if snippet.favorite]
 
+    def update(self, snippet: Snippet) -> None:
+        """Update bestehendes Snippet (ID unverändert!)"""
+        if snippet.id not in self._data:
+            raise SnippetNotFoundError(f"Snippet {snippet.id} not found")
+
+        existing = self._data[snippet.id]
+        for key, value in snippet.model_dump(exclude={"id"}).items():
+            setattr(existing, key, value)
+
 
 class DBSnippetRepo(SnippetRepository):
     def __init__(self, session) -> None:
@@ -158,3 +171,15 @@ class DBSnippetRepo(SnippetRepository):
     def list_favorites(self) -> Sequence[Snippet]:
         statement = select(Snippet).where(Snippet.favorite)
         return self.session.exec(statement).all()
+
+    def update(self, snippet: Snippet) -> None:
+        """Update bestehendes Snippet (SQLAlchemy-sicher!)"""
+        existing = self.session.get(Snippet, snippet.id)
+        if not existing:
+            raise SnippetNotFoundError(f"Snippet {snippet.id} not found")
+
+        for key, value in snippet.model_dump(exclude={"id"}).items():
+            setattr(existing, key, value)
+
+        self.session.add(existing)
+        self.session.commit()
