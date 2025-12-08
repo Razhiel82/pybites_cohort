@@ -146,6 +146,7 @@ def test_delete_snippet_ui(engine, repo, example_snippets, snap_compare, monkeyp
         await pilot.press("enter")
         await pilot.press("tab")
         await pilot.press("tab")
+        await pilot.press("tab")
         await pilot.press("1")
         await pilot.press("tab")
         await pilot.press("enter")

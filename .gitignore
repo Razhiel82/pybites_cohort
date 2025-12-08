@@ -209,3 +209,4 @@ __marimo__/
 *.sqlite
 snapshot_report.html
 test_sqlite.db
+test_sqlite.db
