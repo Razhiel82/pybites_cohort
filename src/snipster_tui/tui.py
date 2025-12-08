@@ -268,7 +268,7 @@ class Snipster(App):
 
         # Menu entfernen
         try:
-            self.query_one("#action_menu", Vertical).remove()
+            self.query_one("#action_menu", Horizontal).remove()
             self.query_one("#menu_title").remove()
         except NoMatches:
             pass

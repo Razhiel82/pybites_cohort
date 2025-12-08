@@ -1,13 +1,25 @@
+from pathlib import Path
+
 import pytest
+from decouple import Config, RepositoryEnv
 from sqlmodel import Session, SQLModel, create_engine, text
 from sqlmodel.pool import StaticPool
 
 from snipster_tui.models import Language, Snippet
 from snipster_tui.tui import DBSnippetRepo, Snipster
 
+TEST_PROJECT_HOME = Path.home() / ".test_snipster_tui"
+TEST_DB_PATH = TEST_PROJECT_HOME / "test_snipster_tui.sqlite"
+TEST_ENV_PATH = TEST_PROJECT_HOME / ".env"
 
-@pytest.fixture(params=["memory", "file"], scope="session")
-def engine(request):  # ← EINZIGE engine Fixture!
+
+TEST_PROJECT_HOME = Path.home() / ".test_snipster_tui"
+TEST_DB_PATH = TEST_PROJECT_HOME / "test_snipster_tui.sqlite"
+TEST_ENV_PATH = TEST_PROJECT_HOME / ".env"
+
+
+@pytest.fixture(scope="session", params=["memory", "file"])
+def engine(request):
     if request.param == "memory":
         engine = create_engine(
             "sqlite:///:memory:",
@@ -15,9 +27,10 @@ def engine(request):  # ← EINZIGE engine Fixture!
             poolclass=StaticPool,
             echo=False,
         )
-    else:  # file
+    else:
+        TEST_PROJECT_HOME.mkdir(parents=True, exist_ok=True)
         engine = create_engine(
-            "sqlite:///test_sqlite.db",
+            f"sqlite:///{TEST_DB_PATH}",
             connect_args={"check_same_thread": False},
             echo=False,
         )
@@ -26,12 +39,47 @@ def engine(request):  # ← EINZIGE engine Fixture!
     engine.dispose()
 
 
-@pytest.fixture(scope="session")  # ← scope="session" statt "function"!
+@pytest.fixture(scope="function")
+def tui_config(request, monkeypatch, engine):
+    """Isolierte TUI-Config pro Testfunktion, aber shared engine."""
+    # Engine-Typ bestimmen
+    url = str(engine.url)
+    if ":memory:" in url:
+        db_url = "sqlite:///:memory:"
+    else:
+        db_url = f"sqlite:///{TEST_DB_PATH}"
+
+    TEST_PROJECT_HOME.mkdir(parents=True, exist_ok=True)
+    TEST_ENV_PATH.write_text(f"DATABASE_URL={db_url}\n")
+
+    def mock_get_session():
+        return Session(engine, expire_on_commit=False)
+
+    def mock_ensure_env_file():
+        return Config(RepositoryEnv(TEST_ENV_PATH)), None
+
+    monkeypatch.setattr("snipster_tui.tui.ENV_PATH", TEST_ENV_PATH)
+    monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+    monkeypatch.setattr("snipster_tui.tui.ensure_env_file", mock_ensure_env_file)
+    monkeypatch.setattr("snipster_tui.tui.DATABASE_URL_MOD", db_url)
+
+    import importlib
+
+    import snipster_tui.tui
+
+    importlib.reload(snipster_tui.tui)
+
+    yield
+
+    importlib.reload(snipster_tui.tui)
+
+
+@pytest.fixture(scope="session")
 def session(engine):
     """Session mit gleichem Scope wie engine"""
     with Session(engine, expire_on_commit=False) as session:
         if "test_sqlite.db" in str(engine.url):
-            # IGNORE-Fehler bei fehlenden Tabellen
+            # IGNORE-Error if tables missing
             try:
                 session.exec(text("DELETE FROM snippet_tags"))
             except Exception:
@@ -88,8 +136,8 @@ def test_main_menu(snap_compare):
     assert snap_compare(Snipster())
 
 
-@pytest.mark.parametrize("engine", ["memory", "file"], indirect=["engine"])
-def test_add_and_list_snippets(engine, repo, example_snippets):
+@pytest.mark.parametrize("engine", ["memory", "file"], indirect=True)
+def test_add_and_list_snippets(engine, repo, example_snippets, tui_config):
     for snippet in example_snippets:
         repo.add(snippet)
     repo.session.commit()
@@ -103,7 +151,9 @@ def test_add_and_list_snippets(engine, repo, example_snippets):
 
 
 @pytest.mark.parametrize("engine", ["memory"], indirect=True)
-def test_list_snippets_ui(engine, repo, example_snippets, snap_compare, monkeypatch):
+def test_list_snippets_ui(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
     for snippet in example_snippets:
@@ -131,7 +181,9 @@ def test_add_snippet_ui(snap_compare):
 
 
 @pytest.mark.parametrize("engine", ["memory"], indirect=True)
-def test_delete_snippet_ui(engine, repo, example_snippets, snap_compare, monkeypatch):
+def test_delete_snippet_ui(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
     for snippet in example_snippets:
         repo.add(snippet)
     repo.session.commit()
@@ -153,3 +205,103 @@ def test_delete_snippet_ui(engine, repo, example_snippets, snap_compare, monkeyp
         await pilot.pause()
 
     assert snap_compare(Snipster(), run_before=click_delete)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_delete_invalid_snippet_ui(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    for snippet in example_snippets:
+        repo.add(snippet)
+    repo.session.commit()
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_delete(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_delete)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_delete_snippet_ui_fields(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    for snippet in example_snippets:
+        repo.add(snippet)
+    repo.session.commit()
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_delete_fields(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_delete_fields)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_init_snippet_ui_fields(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    for snippet in example_snippets:
+        repo.add(snippet)
+    repo.session.commit()
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_init_fields(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_init_fields)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_init_snippet_ui_default(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    for snippet in example_snippets:
+        repo.add(snippet)
+    repo.session.commit()
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_init_defaults(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_init_defaults)
