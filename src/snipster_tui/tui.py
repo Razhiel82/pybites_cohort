@@ -1,4 +1,6 @@
-from decouple import config
+from pathlib import Path
+
+from decouple import Config, RepositoryEnv
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
@@ -12,23 +14,48 @@ from snipster_tui.exceptions import NoMatches, SnippetNotFoundError
 from snipster_tui.models import Language, Snippet
 from snipster_tui.repo import DBSnippetRepo
 
-DB_USER = config("DB_USER")
-DB_PASS = config("DB_PASS")
-DB_HOST = config("DB_HOST")
-DB_PORT = config("DB_PORT")
-DB_NAME = config("DB_NAME")
+DEFAULT_PROJECT_HOME = Path.home() / ".snipster_tui"
+DEFAULT_DB_PATH = DEFAULT_PROJECT_HOME / "snipster_tui.sqlite"
+ENV_PATH = DEFAULT_PROJECT_HOME / ".env"
 
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+def ensure_env_file() -> tuple[Config, str | None]:
+    if not ENV_PATH.exists():
+        print(f"[yellow]⚠️  No .env found at {ENV_PATH}")
+        DEFAULT_PROJECT_HOME.mkdir(parents=True, exist_ok=True)
+        # Datei anlegen, damit open nicht crasht
+        ENV_PATH.touch(exist_ok=True)
+        fallback_url = f"sqlite:///{DEFAULT_DB_PATH}"
+        return Config(RepositoryEnv(ENV_PATH)), fallback_url
+    return Config(RepositoryEnv(ENV_PATH)), None
+
+
+# EINMALIGE Config-Ladung
+config_modul, fallback_url = ensure_env_file()
+DATABASE_URL_MOD = fallback_url or f"sqlite:///{DEFAULT_DB_PATH}"
+
+DB_USER_MOD = config_modul("DB_USER", default="")
+DB_PASS_MOD = config_modul("DB_PASS", default="")
+DB_HOST_MOD = config_modul("DB_HOST", default="localhost")
+DB_PORT_MOD = config_modul("DB_PORT", default="5432")
+DB_NAME_MOD = config_modul("DB_NAME", default="snipster")
+
+# PostgreSQL URL if Postgres-config exists
+if DB_USER_MOD and all([DB_PASS_MOD, DB_HOST_MOD, DB_PORT_MOD, DB_NAME_MOD]):
+    DATABASE_URL_MOD = f"postgresql://{DB_USER_MOD}:{DB_PASS_MOD}@{DB_HOST_MOD}:{DB_PORT_MOD}/{DB_NAME_MOD}"
 
 
 def get_session():
-    engine = create_engine(DATABASE_URL, echo=False)
-    return Session(engine)
+    return Session(create_engine(DATABASE_URL_MOD, echo=False))
 
 
 class Snipster(App):
     show_add_inputs = reactive(False)
     show_delete_inputs = reactive(False)
+
+    async def _auto_init_config(self) -> None:
+        """Async Auto-Config Start (Thread-sicher)"""
+        await self.call_later(self.init_config_tui)
 
     def compose(self) -> ComposeResult:
         yield Horizontal(
@@ -36,16 +63,82 @@ class Snipster(App):
             Button("List Snippets", id="list"),
             Button("Delete Snippet", id="delete"),
             Button("Exit", id="exit", variant="error"),
+            Button(
+                label="Init",
+                id="init",
+                variant="warning",
+            ),
             id="main_menu",
         )
         yield Static("", id="status")
         yield Vertical(id="content_area")
+
+        if not ENV_PATH.exists():
+            self.set_interval(self.auto_init_config, 0.1, once=True)
+
+    async def auto_init_config(self) -> None:
+        """Autostart Config-TUI wenn no .env exists"""
+        await self.init_config_tui()
 
     def clear_content_area(self) -> None:
         content = self.query_one("#content_area")
         # Entferne alle Widgets unterhalb des Containers, aber nicht den Container selbst
         for child in list(content.children):
             child.remove()
+
+    async def toggle_favorite(self, snippet_id: int) -> None:
+        """Toggle favorite status"""
+        with get_session() as session:
+            snippet = session.get(Snippet, snippet_id)
+            if snippet:
+                snippet.favorite = not snippet.favorite
+                session.commit()
+
+        # Tabelle refreshen
+        await self.refresh_table()
+
+        # Status ohne snippet-Zugriff
+        status = self.query_one("#status", Static)
+        status.update(f"✅ Snippet {snippet_id} favorite toggled!")
+
+    async def delete_selected_snippet(self, snippet_id: int) -> None:
+        with get_session() as session:
+            repo = DBSnippetRepo(session)
+            repo.delete(snippet_id)
+
+        await self.refresh_table()
+
+        status = self.query_one("#status", Static)
+        status.update(f"✅ Snippet {snippet_id} deleted!")
+
+    async def action_toggle_fav_selected(self) -> None:
+        table = self.query_one(DataTable)
+        if table.cursor_row is not None:
+            row_index = table.cursor_row
+            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
+            await self.toggle_favorite(snippet_id)
+
+    async def action_delete_selected(self) -> None:
+        """Delete ausgewählte Zeile"""
+        table = self.query_one(DataTable)
+        if table.cursor_row is not None:
+            row_index = table.cursor_row
+            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
+            await self.delete_selected_snippet(snippet_id)
+
+    async def action_refresh_list(self) -> None:
+        """Liste neu laden"""
+        await self.refresh_table()
+
+    async def refresh_table(self) -> None:
+        await self.list_snippets()  # Tabelle neu rendern
+
+    BINDINGS = [
+        ("f", "toggle_fav_selected", "Toggle Favorite"),
+        ("d", "delete_selected", "Delete Selected"),
+        ("e", "edit_selected", "Edit Selected"),
+        ("ctrl+r", "refresh_list", "Refresh List"),
+    ]
 
     @on(OptionList.OptionSelected)
     async def language_selected(self, event: OptionList.OptionSelected) -> None:
@@ -72,7 +165,6 @@ class Snipster(App):
                     id="language_select",
                 )
             )
-            content.mount(Input(placeholder="Tags (comma separated)", id="tags"))
             content.mount(Button("Submit", id="submit"))
 
     @on(Button.Pressed, "#submit")
@@ -80,14 +172,11 @@ class Snipster(App):
         title_input = self.query_one("#title", Input)
         code_input = self.query_one("#code", Input)
         description_input = self.query_one("#description", Input)
-        tags_input = self.query_one("#tags", Input)
         title = title_input.value
         code = code_input.value
         description = description_input.value
         language_str = getattr(self, "selected_language", "Python")
         language_enum = Language[language_str.lower()]
-        tags_str = tags_input.value
-        tags_list = [tag.strip() for tag in tags_str.split(",") if tag.strip()]
         session = get_session()
         repo = DBSnippetRepo(session)
         snippet = Snippet(
@@ -105,9 +194,6 @@ class Snipster(App):
         if snippet.id is None:
             raise RuntimeError("Snippet ID not set after add/commit")
 
-        if tags_list:
-            repo.tag(snippet.id, *tags_list)
-
         status = self.query_one("#status", Static)
         status.update(f"Snippet '{title}' added.")
 
@@ -118,66 +204,91 @@ class Snipster(App):
         self.query_one("#submit").remove()
         self.query_one("#description").remove()
         self.query_one("#language_select").remove()
-        self.query_one("#tags").remove()
 
     @on(Button.Pressed, "#list")
     async def list_snippets(self) -> None:
         self.clear_content_area()
         content = self.query_one("#content_area")
-        session = get_session()
-        repo = DBSnippetRepo(session)
-        snippets = repo.list()
 
+        snippets = DBSnippetRepo(get_session()).list()
         table = DataTable()
         content.mount(table)
-        self.mount(table, after=self.query_one("#status"))
 
-        table.add_columns("ID", "Title", "Language", "Favorite", "Tags")
+        table.add_columns("ID", "Title", "Language", "Favorite", "Actions")
 
-        seen = set()
-        unique_snippets = []
         for snippet in snippets:
-            if snippet.id not in seen:
-                unique_snippets.append(snippet)
-                seen.add(snippet.id)
-
-        for snippet in unique_snippets:
             favorite_icon = "⭐" if snippet.favorite else ""
-            tags = ", ".join(snippet.tag_list)
-            table.add_row(
+            table.add_row(  # Einfach ohne row_key!
                 str(snippet.id),
-                snippet.title,
+                snippet.title[:30] + "..."
+                if len(snippet.title) > 30
+                else snippet.title,
                 snippet.language.value,
                 favorite_icon,
-                tags,
+                "⭐/🗑️/✏️",
             )
+
         table.cursor_type = "row"
         table.zebra_stripes = True
         table.focus()
 
-    # Not working yet :( Session error while refreshing but adding and removing works via selection
+        status = self.query_one("#status", Static)
+        status.update(
+            "↑↓=Nav, Enter=Action-Menü, [yellow]F=Favorite[/yellow], [red]D=Delete[/red], [orange]E=Edit(comming soon!)[/orange], [green]Ctrl+R=Refresh[/green"
+        )
+
     @on(DataTable.RowSelected)
-    def on_row_selected(self, event: DataTable.RowSelected) -> None:
+    async def on_row_action(self, event: DataTable.RowSelected) -> None:
         table = self.query_one(DataTable)
         row_index = event.cursor_row
 
+        # ID extrahieren
         id_coord = Coordinate(row=row_index, column=0)
-        snippet_id_str = table.get_cell_at(id_coord)
-        snippet_id = int(snippet_id_str)
+        snippet_id = int(table.get_cell_at(id_coord))
 
-        with get_session() as session:
-            repo = DBSnippetRepo(session)
-            snippet = session.get(Snippet, snippet_id)
+        # Kontext-Menü mounten
+        from textual.widgets import Button, Static
 
-            if snippet.favorite:
-                repo.favorite_off(snippet_id)
-            else:
-                repo.favorite_on(snippet_id)
+        menu = Horizontal(
+            Button("⭐ Toggle Favorite", id=f"fav_{snippet_id}"),
+            Button("🗑️ Delete Snippet", id=f"del_{snippet_id}"),
+            Button("✏️ Edit Snippet", id=f"edit_{snippet_id}"),
+            Button("❌ Cancel", id="cancel_action"),
+            id="action_menu",
+        )
 
-        favorite_column_index = 3
-        fav_coord = Coordinate(row=row_index, column=favorite_column_index)
-        fav_icon = "⭐" if snippet.favorite else ""
-        table.update_cell(fav_coord, fav_icon)
+        content = self.query_one("#content_area")
+        content.mount(Static(f"Actions for Snippet ID: {snippet_id}", id="menu_title"))
+        content.mount(menu)
+        menu.focus()
+
+    @on(Button.Pressed, "#action_menu Button")
+    async def handle_row_action(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+
+        # Menu entfernen
+        try:
+            self.query_one("#action_menu", Vertical).remove()
+            self.query_one("#menu_title").remove()
+        except NoMatches:
+            pass
+
+        # Actions → Auto-Refresh!
+        if button_id.startswith("fav_"):
+            snippet_id = int(button_id.split("_")[1])
+            await self.toggle_favorite(snippet_id)
+
+        elif button_id.startswith("del_"):
+            snippet_id = int(button_id.split("_")[1])
+            await self.delete_selected_snippet(snippet_id)
+
+        elif button_id.startswith("edit_"):
+            snippet_id = int(button_id.split("_")[1])
+            await self.edit_snippet(snippet_id)
+
+        elif button_id == "cancel_action":
+            table = self.query_one(DataTable)
+            table.focus()
 
     @on(Button.Pressed, "#delete")
     async def delete_snippet(self) -> None:
@@ -216,39 +327,33 @@ class Snipster(App):
 
     @on(Button.Pressed, "#confirm_delete")
     async def confirm_delete_snippet(self) -> None:
+        status = self.query_one("#status", Static)
+
+        # 1. Input LESEN (bevor löschen!)
+        try:
+            snippet_id_input = self.query_one("#snippet_id", Input)
+            snippet_id = int(snippet_id_input.value)
+        except (NoMatches, ValueError):
+            status.update("❌ Snippet ID Input not found or invalid!")
+            return
+
+        # 2. ALLES löschen
         content = self.query_one("#content_area")
         for child in list(content.children):
             await child.remove()
-        snippet_id_input = self.query_one("#snippet_id", Input)
-        try:
-            snippet_id = int(snippet_id_input.value)
-        except ValueError:
-            status = self.query_one("#status", Static)
-            status.update("Ungültige ID. Bitte geben Sie eine Zahl ein.")
-            return
-        except NoMatches:
-            widgets = self.query("#snippet_id", Input)
-            if not widgets:
-                status = self.query_one("#status", Static)
-                status.update("Snippet ID input not found. Please try again.")
-                return
-            snippet_id_input = widgets[0]
-            snippet_id = int(snippet_id_input.value)
+
+        # 3. Löschen
         try:
             with get_session() as session:
                 repo = DBSnippetRepo(session)
                 snippet = session.get(Snippet, snippet_id)
                 if snippet is None:
                     raise SnippetNotFoundError(
-                        f"Snippet mit ID {snippet_id} nicht gefunden."
+                        f"Snippet with ID {snippet_id} not found."
                     )
                 repo.delete(snippet_id)
-                status = self.query_one("#status", Static)
-                status.update(f"Snippet mit ID {snippet_id} wurde gelöscht.")
-                self.query_one("#snippet_id").remove()
-                self.query_one("#confirm_delete").remove()
+                status.update(f"✅ Snippet ID {snippet_id} deleted!")
         except SnippetNotFoundError as e:
-            status = self.query_one("#status", Static)
             status.update(str(e))
 
     @on(Button.Pressed, "#exit")
@@ -263,7 +368,128 @@ class Snipster(App):
             self.query_one("#submit").remove()
             self.query_one("#description").remove()
             self.query_one("#language_select").remove()
-            self.query_one("#tags").remove()
+
+    def disable_db_inputs(self, disabled: bool) -> None:
+        for field_id in ["user", "password", "host", "port", "name"]:
+            try:
+                inp = self.query_one(f"#{field_id}", Input)
+                inp.disabled = disabled
+            except NoMatches:
+                continue
+
+    @on(OptionList.OptionSelected, "#db_options")
+    async def on_db_option_selected(self, event: OptionList.OptionSelected) -> None:
+        """Reagiert auf Default/Postgres Auswahl"""
+        if event.option.id == "default":
+            self.disable_db_inputs(True)
+        elif event.option.id == "postgres":
+            self.disable_db_inputs(False)
+
+    @on(Button.Pressed, "#init")
+    async def init_config_tui(self) -> None:
+        self.clear_content_area()
+        content = self.query_one("#content_area")
+        self.show_add_inputs = not self.show_add_inputs
+        # self.disable_db_inputs(True)
+        if self.show_add_inputs:
+            option_list = OptionList(
+                Option(
+                    "Default -> SQLite DB tui.sqlite will be created in current directory",
+                    id="default",
+                ),
+                Option("Postgres-DB", id="postgres"),
+                id="db_options",
+            )
+            content.mount(option_list)
+
+            content.mount(Input(placeholder="DB_USER", id="user", disabled=True))
+            content.mount(Input(placeholder="DB_PASS", id="password", disabled=True))
+            content.mount(Input(placeholder="DB_HOST", id="host", disabled=True))
+            content.mount(Input(placeholder="DB_PORT", id="port", disabled=True))
+            content.mount(Input(placeholder="DB_NAME", id="name", disabled=True))
+
+            content.mount(Button("Save", id="save"))
+
+    def show_success_message(self) -> None:
+        """Zeigt Erfolgsnachricht nach Speichern"""
+        status = self.query_one("#status", Static)
+        status.update(f"[green]🎉 Snipster-TUI is ready![/] Edit {ENV_PATH} anytime.")
+
+    def schedule_close_config(self) -> None:
+        """Schedule closing config form after delay"""
+        self.call_later(lambda s=self: self.close_config_form(), 3.0)
+
+    @on(Button.Pressed, "#save")
+    async def save_config(self) -> None:
+        """Save-Handler mit Directory-Setup + Config-Writing"""
+        status = self.query_one("#status", Static)
+
+        # 1. Project Directory erstellen
+        try:
+            if not DEFAULT_PROJECT_HOME.exists():
+                DEFAULT_PROJECT_HOME.mkdir(parents=True)
+                status.update(f"[green]Created directory: '{DEFAULT_PROJECT_HOME}'[/]")
+            else:
+                status.update(
+                    f"[blue]Using existing directory: '{DEFAULT_PROJECT_HOME}'[/]"
+                )
+        except Exception as e:
+            status.update(f"[red]Error creating directory: {e}[/]")
+            return
+
+        # 2. DB-URL basierend auf Auswahl
+        option_list = self.query_one("#db_options", OptionList)
+        highlighted_index = option_list.highlighted
+        use_default_db = (highlighted_index is not None) and (highlighted_index == 0)
+
+        if use_default_db:
+            database_url = f"sqlite:///{DEFAULT_DB_PATH}"
+            status.update("[green]Using Default SQLite DB[/]")
+        else:
+            # Postgres-Werte aus Inputs lesen
+            try:
+                db_user = self.query_one("#user", Input).value
+                db_pass = self.query_one("#password", Input).value
+                db_host = self.query_one("#host", Input).value
+                db_port = self.query_one("#port", Input).value
+                db_name = self.query_one("#name", Input).value
+
+                if not all([db_user, db_pass, db_host, db_port, db_name]):
+                    status.update("[red]Please fill all Postgres fields[/]")
+                    return
+
+                database_url = (
+                    f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
+                )
+                status.update("[green]Using custom Postgres DB[/]")
+            except Exception as e:
+                status.update(f"[red]Error reading inputs: {e}[/]")
+                return
+
+        # 3. Config-File schreiben
+        try:
+            content = [f"DATABASE_URL={database_url}"]
+            ENV_PATH.write_text("\n".join(content) + "\n")
+            status.update(f"[green]✅ Configuration saved at: {ENV_PATH}[/]")
+            from snipster_tui.models import SQLModel
+
+            engine = create_engine(database_url, echo=False)
+            SQLModel.metadata.create_all(engine)
+        except Exception as e:
+            status.update(f"[red]Error writing config: {e}[/]")
+            return
+
+        # 4. Erfolg-Feedback (TUI-Style)
+        status.update(f"[green]✅ Configuration saved at: {ENV_PATH}[/]")
+        self.call_later(self.show_success_message)
+
+        # 5. Auto-Schließen
+        self.schedule_close_config()
+
+    async def close_config_form(self) -> None:
+        """Config-Form nach Save schließen"""
+        self.show_add_inputs = False
+        self.clear_content_area()
 
 
 if __name__ == "__main__":
