@@ -210,3 +210,4 @@ __marimo__/
 snapshot_report.html
 test_sqlite.db
 test_sqlite.db
+src/snipster_tui/bak.env
