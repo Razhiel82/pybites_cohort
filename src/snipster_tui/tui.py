@@ -1,14 +1,13 @@
 from pathlib import Path
 
 from decouple import Config, RepositoryEnv
-from rich.syntax import Syntax
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.reactive import reactive
-from textual.widgets import Button, DataTable, Input, OptionList, Static
+from textual.widgets import Button, DataTable, Input, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from snipster_tui.exceptions import NoMatches, SnippetNotFoundError
@@ -51,6 +50,23 @@ def get_session():
 
 
 class Snipster(App):
+    CSS = """
+    #content_area {
+        height: 1fr;
+    }
+    #status {
+        height: 1;
+    }
+    #main_menu {
+        height: 3;
+    }
+    DataTable {
+        height: 1fr;
+    }
+    DataTable > .column-2 {  /* 0=ID,1=Title,2=Code */
+        width: 80;
+    }
+    """
     show_add_inputs = reactive(False)
     show_delete_inputs = reactive(False)
     show_edit_inputs = reactive(False)
@@ -176,28 +192,42 @@ class Snipster(App):
         self.clear_content_area()
         content = self.query_one("#content_area")
         self.show_add_inputs = not self.show_add_inputs
-        if self.show_add_inputs:
-            content.mount(Input(placeholder="Title", id="title"))
-            content.mount(Input(placeholder="Code", id="code"))
-            content.mount(Input(placeholder="Description", id="description"))
-            content.mount(
-                OptionList(
-                    Option("Python", id="lang_python"),
-                    Option("Rust", id="lang_rust"),
-                    Option("Golang", id="lang_go"),
-                    Option("Javascript", id="lang_java"),
-                    id="language_select",
-                )
-            )
-            content.mount(Button("Submit", id="submit"))
+
+        if not self.show_add_inputs:
+            return
+
+        code = TextArea(id="code")
+        code.styles.height = 15
+
+        form = Vertical(
+            Static("Titel:"),
+            Input(placeholder="Title", id="title"),
+            Static("Code:"),
+            code,
+            Static("Beschreibung:"),
+            Input(placeholder="Description", id="description"),
+            Static("Sprache:"),
+            OptionList(
+                Option("Python", id="lang_python"),
+                Option("Rust", id="lang_rust"),
+                Option("Golang", id="lang_go"),
+                Option("Javascript", id="lang_java"),
+                id="language_select",
+            ),
+            Button("Submit", id="submit"),
+            id="add_form",
+        )
+
+        await content.mount(form)
 
     @on(Button.Pressed, "#submit")
     async def submit_snippet(self) -> None:
         title_input = self.query_one("#title", Input)
-        code_input = self.query_one("#code", Input)
+        code_input = self.query_one("#code", TextArea)
         description_input = self.query_one("#description", Input)
+
         title = title_input.value
-        code = code_input.value
+        code = code_input.text  # TextArea statt Input
         description = description_input.value
         language_str = getattr(self, "selected_language", "Python")
         language_enum = Language[language_str.lower()]
@@ -238,37 +268,35 @@ class Snipster(App):
         table = DataTable()
         content.mount(table)
 
-        # Spalten mit renderable-Support:
         table.add_columns(
-            "ID", "Title", "Code", "Description", "Language", "Favorite", "Actions"
+            "ID",
+            "Title",
+            "Code (first 3 lines)",
+            "Description",
+            "Language",
+            "Favorite",
+            "Actions",
         )
 
         for snippet in snippets:
             favorite_icon = "⭐" if snippet.favorite else ""
 
-            # Rich Syntax für Code (kurz gehalten für TUI):
-            code_preview = Syntax(
-                snippet.code[:100] + "..." if len(snippet.code) > 100 else snippet.code,
-                str(snippet.language.value),  # "python", "rust", etc.
-                theme="monokai",
-                line_numbers=False,  # TUI: zu eng
-                word_wrap=True,
-                padding=(0, 1),
-            )
+            lines = snippet.code.splitlines() or [""]
+            first_lines = lines[:3]
+            code_text = "\n".join(first_lines)
+            if len(lines) > 3:
+                code_text += "\n..."
 
-            title_short = (
-                snippet.title[:25] + "..." if len(snippet.title) > 25 else snippet.title
-            )
-            desc_short = (
-                snippet.description[:25] + "..."
-                if len(snippet.description) > 25
-                else snippet.description
-            )
+            def shorten(text: str, max_len: int = 25) -> str:
+                return text if len(text) <= max_len else text[:max_len] + "..."
+
+            title_short = shorten(snippet.title, 25)
+            desc_short = shorten(snippet.description or "", 40)
 
             table.add_row(
                 str(snippet.id),
                 title_short,
-                code_preview,  # ← Rich Syntax!
+                code_text,  # nur String → kein Static()
                 desc_short,
                 snippet.language.value,
                 favorite_icon,
@@ -281,7 +309,8 @@ class Snipster(App):
 
         status = self.query_one("#status", Static)
         status.update(
-            "↑↓=Nav, Enter=Action-Menu, [yellow]F=Favorite[/yellow], [red]D=Delete[/red], [orange]E=Edit[/orange], [green]Ctrl+R=Refresh[/green]"
+            "↑↓=Nav, Enter=Action-Menu, [yellow]F=Favorite[/yellow], "
+            "[red]D=Delete[/red], [orange]E=Edit[/orange], [green]Ctrl+R=Refresh[/green]"
         )
 
     @on(DataTable.RowSelected)

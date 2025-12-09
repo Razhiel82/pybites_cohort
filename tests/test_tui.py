@@ -113,7 +113,7 @@ def example_snippets():
         Snippet(
             title="Hello rust",
             code='fn main() { \n\tprintln!("Hello World!");\n}  ',
-            description="A simple Rust hello world snippet",
+            description="v",
             language=Language.rust,
         ),
         Snippet(
