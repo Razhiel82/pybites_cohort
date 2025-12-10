@@ -44,6 +44,8 @@ ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
 
 ## Version History
 
+* v0.4.0
+
 * v0.3.0
   * added snippet edit-feature
   * added testing
