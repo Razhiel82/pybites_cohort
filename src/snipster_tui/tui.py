@@ -5,10 +5,10 @@ from rich.syntax import Syntax
 from sqlmodel import Session, create_engine
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
-from textual.coordinate import Coordinate
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
-from textual.widgets import Button, DataTable, Input, OptionList, Static
+from textual.screen import ModalScreen
+from textual.widgets import Button, DataTable, Input, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from snipster_tui.exceptions import NoMatches, SnippetNotFoundError
@@ -50,7 +50,83 @@ def get_session():
     return Session(create_engine(DATABASE_URL_MOD, echo=False))
 
 
+class CodeViewScreen(ModalScreen[None]):
+    BINDINGS = [("escape", "close_modal", "Close")]
+
+    def action_close_modal(self) -> None:
+        self.dismiss()
+
+    DEFAULT_CSS = """
+    CodeViewScreen {
+        align: center middle;
+    }
+    CodeViewScreen > VerticalScroll {
+        width: 90;
+        height: 70%;
+        border: round solid #444;
+        background: $panel;
+    }
+    #code_view {
+        height: 1fr;
+        padding: 1;
+        background: $background;
+    }
+    #buttons {
+        height: auto;
+        margin-top: 1;
+    }
+    Button {
+        margin: 0 1;
+    }
+    """
+
+    def __init__(self, snippet_id: int, code: str, title: str, language: str):
+        super().__init__()  # ← ZUERST super()!
+        self.snippet_id = snippet_id
+        self.code = code
+        self.title = title
+        self.language = language or "text"
+
+    def compose(self) -> ComposeResult:
+        yield VerticalScroll(
+            Static(
+                f"[bold cyan]Snippet '{self.title}' (ID: {self.snippet_id})[/]",
+                id="title",
+            ),
+            Static(
+                Syntax(self.code, self.language, theme="monokai", line_numbers=True),
+                id="code_view",
+                expand=True,
+            ),
+            Horizontal(
+                Button("📋 Copy Code", id="copy_btn", variant="primary"),
+                Button("❌ Close", id="close_btn", variant="error"),
+                id="buttons",
+            ),
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "copy_btn":
+            self.app.copy_to_clipboard(self.code)
+            self.notify(f"Code copied! ({len(self.code)} chars)", severity="success")
+        elif event.button.id == "close_btn":
+            self.dismiss()
+
+
 class Snipster(App):
+    CSS = """
+    #content_area {
+        height: 1fr;
+    }
+
+    #status {
+        height: 1;
+    }
+
+    #main_menu {
+        height: 3;
+    }
+    """
     show_add_inputs = reactive(False)
     show_delete_inputs = reactive(False)
     show_edit_inputs = reactive(False)
@@ -89,50 +165,64 @@ class Snipster(App):
         for child in list(content.children):
             child.remove()
 
+    async def toggle_fav_selected(self) -> None:
+        table = self.query_one(DataTable)
+        if table.cursor_row is None:
+            self.notify("No row selected!", severity="warning")
+            return
+        row_key = table.get_row_key(table.cursor_row)
+        snippet_id = int(row_key.value)
+        await self.toggle_favorite(snippet_id)
+
+    async def delete_selected(self) -> None:
+        table = self.query_one(DataTable)
+        if table.cursor_row is None:
+            self.notify("No row selected!", severity="warning")
+            return
+        row_key = table.get_row_key(table.cursor_row)
+        snippet_id = int(row_key.value)
+        await self.delete_selected_snippet(snippet_id)
+
+    async def edit_selected(self) -> None:
+        table = self.query_one(DataTable)
+        if table.cursor_row is None:
+            self.notify("No row selected!", severity="warning")
+            return
+        row_key = table.get_row_key(table.cursor_row)
+        snippet_id = int(row_key.value)
+        await self.edit_snippet(snippet_id)
+
     async def toggle_favorite(self, snippet_id: int) -> None:
-        """Toggle favorite status"""
         with get_session() as session:
             snippet = session.get(Snippet, snippet_id)
             if snippet:
                 snippet.favorite = not snippet.favorite
                 session.commit()
-
-        # Tabelle refreshen
         await self.refresh_table()
-
-        # Status ohne snippet-Zugriff
-        status = self.query_one("#status", Static)
-        status.update(f"✅ Snippet {snippet_id} favorite toggled!")
+        self.query_one("#status", Static).update(f"⭐ Snippet {snippet_id} toggled!")
 
     async def delete_selected_snippet(self, snippet_id: int) -> None:
         with get_session() as session:
             repo = DBSnippetRepo(session)
             repo.delete(snippet_id)
+        await self.refresh_table()
+        self.query_one("#status", Static).update(f"🗑️ Snippet {snippet_id} deleted!")
 
+    async def refresh_list(self) -> None:
+        """Liste neu laden (Ctrl+R)"""
         await self.refresh_table()
 
-        status = self.query_one("#status", Static)
-        status.update(f"✅ Snippet {snippet_id} deleted!")
-
-    async def action_toggle_fav_selected(self) -> None:
-        table = self.query_one(DataTable)
-        if table.cursor_row is not None:
-            row_index = table.cursor_row
-            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
-            await self.toggle_favorite(snippet_id)
-
-    async def action_delete_selected(self) -> None:
-        """Delete ausgewählte Zeile"""
-        table = self.query_one(DataTable)
-        if table.cursor_row is not None:
-            row_index = table.cursor_row
-            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
-            await self.delete_selected_snippet(snippet_id)
+    # async def action_delete_selected(self) -> None:
+    #     """Delete ausgewählte Zeile"""
+    #     table = self.query_one(DataTable)
+    #     if table.cursor_row is not None:
+    #         row_index = table.cursor_row
+    #         snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
+    #         await self.delete_selected_snippet(snippet_id)
 
     async def edit_snippet(self, snippet_id: int) -> None:
         """Direktes Edit aus Kontext-Menü"""
         await self.toggle_edit_snippet()
-
         self.call_later(self._load_snippet_direct, snippet_id)
 
     async def _load_snippet_direct(self, snippet_id: int) -> None:
@@ -142,17 +232,17 @@ class Snipster(App):
             edit_id_input.value = str(snippet_id)
             self.call_later(self.load_snippet_for_edit)
 
-    async def action_edit_selected(self) -> None:
-        """E-Taste: Edit ausgewählte Zeile"""
-        table = self.query_one(DataTable)
-        if table.cursor_row is not None:
-            row_index = table.cursor_row
-            snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
-            await self.edit_snippet(snippet_id)
+    # async def action_edit_selected(self) -> None:
+    #     """E-Taste: Edit ausgewählte Zeile"""
+    #     table = self.query_one(DataTable)
+    #     if table.cursor_row is not None:
+    #         row_index = table.cursor_row
+    #         snippet_id = int(table.get_cell_at(Coordinate(row_index, 0)))
+    #         await self.edit_snippet(snippet_id)
 
-    async def action_refresh_list(self) -> None:
-        """Liste neu laden"""
-        await self.refresh_table()
+    # async def action_refresh_list(self) -> None:
+    #     """Liste neu laden"""
+    #     await self.refresh_table()
 
     async def refresh_table(self) -> None:
         await self.list_snippets()  # Tabelle neu rendern
@@ -176,31 +266,53 @@ class Snipster(App):
         self.clear_content_area()
         content = self.query_one("#content_area")
         self.show_add_inputs = not self.show_add_inputs
-        if self.show_add_inputs:
-            content.mount(Input(placeholder="Title", id="title"))
-            content.mount(Input(placeholder="Code", id="code"))
-            content.mount(Input(placeholder="Description", id="description"))
-            content.mount(
-                OptionList(
-                    Option("Python", id="lang_python"),
-                    Option("Rust", id="lang_rust"),
-                    Option("Golang", id="lang_go"),
-                    Option("Javascript", id="lang_java"),
-                    id="language_select",
-                )
-            )
-            content.mount(Button("Submit", id="submit"))
+
+        if not self.show_add_inputs:
+            return
+
+        code = TextArea(id="code", placeholder="Code (Enter für Zeilenumbruch)")
+        code.styles.height = 15
+
+        form = Vertical(
+            Static("Titel:"),
+            Input(placeholder="Title", id="title"),
+            Static("Code:"),
+            code,
+            Static("Beschreibung:"),
+            Input(placeholder="Description", id="description"),
+            Static("Sprache:"),
+            OptionList(
+                Option("Python", id="lang_python"),
+                Option("Rust", id="lang_rust"),
+                Option("Golang", id="lang_go"),
+                Option("Javascript", id="lang_java"),
+                id="language_select",
+            ),
+            Button("Submit", id="submit"),
+            id="add_form",
+        )
+
+        await content.mount(form)
+        code.focus()  # ← Direkt in TextArea springen
 
     @on(Button.Pressed, "#submit")
     async def submit_snippet(self) -> None:
         title_input = self.query_one("#title", Input)
-        code_input = self.query_one("#code", Input)
+        code_input = self.query_one("#code", TextArea)
         description_input = self.query_one("#description", Input)
+
         title = title_input.value
-        code = code_input.value
+        code = code_input.text
         description = description_input.value
-        language_str = getattr(self, "selected_language", "Python")
+
+        # Language: highlighted Index statt highlighted_child
+        lang_list = self.query_one("#language_select", OptionList)
+        language_str = "Python"  # Fallback
+        if lang_list.highlighted is not None:
+            language_str = lang_list.options[lang_list.highlighted].prompt
+
         language_enum = Language[language_str.lower()]
+
         session = get_session()
         repo = DBSnippetRepo(session)
         snippet = Snippet(
@@ -212,22 +324,10 @@ class Snipster(App):
         )
         repo.add(snippet)
 
-        if not snippet.id:
-            session.commit()  # Nur falls commit nicht schon in add() drin ist
-
-        if snippet.id is None:
-            raise RuntimeError("Snippet ID not set after add/commit")
-
         status = self.query_one("#status", Static)
-        status.update(f"Snippet '{title}' added.")
+        status.update(f"✅ Snippet '{title}' added (ID: {snippet.id})")
 
-        # Eingabefelder verstecken und entfernen
-        self.show_add_inputs = False
-        self.query_one("#title").remove()
-        self.query_one("#code").remove()
-        self.query_one("#submit").remove()
-        self.query_one("#description").remove()
-        self.query_one("#language_select").remove()
+        await self.list_snippets()  # ← Direkt Liste + Form weg!
 
     @on(Button.Pressed, "#list")
     async def list_snippets(self) -> None:
@@ -235,25 +335,18 @@ class Snipster(App):
         content = self.query_one("#content_area")
 
         snippets = DBSnippetRepo(get_session()).list()
-        table = DataTable()
+        table = DataTable(id="snippet_table")
         content.mount(table)
 
         # Spalten mit renderable-Support:
-        table.add_columns(
-            "ID", "Title", "Code", "Description", "Language", "Favorite", "Actions"
-        )
+        table.add_columns("ID", "Title", "Code", "Description", "Language", "Favorite")
 
         for snippet in snippets:
             favorite_icon = "⭐" if snippet.favorite else ""
 
             # Rich Syntax für Code (kurz gehalten für TUI):
-            code_preview = Syntax(
-                snippet.code[:100] + "..." if len(snippet.code) > 100 else snippet.code,
-                str(snippet.language.value),  # "python", "rust", etc.
-                theme="monokai",
-                line_numbers=False,  # TUI: zu eng
-                word_wrap=True,
-                padding=(0, 1),
+            code_preview = (
+                snippet.code[:100] + "..." if len(snippet.code) > 100 else snippet.code
             )
 
             title_short = (
@@ -272,70 +365,33 @@ class Snipster(App):
                 desc_short,
                 snippet.language.value,
                 favorite_icon,
-                "⭐/🗑️/✏️",
+                key=str(snippet.id),
             )
 
         table.cursor_type = "row"
         table.zebra_stripes = True
-        table.focus()
 
+        self.call_later(lambda: table.focus())
         status = self.query_one("#status", Static)
         status.update(
             "↑↓=Nav, Enter=Action-Menu, [yellow]F=Favorite[/yellow], [red]D=Delete[/red], [orange]E=Edit[/orange], [green]Ctrl+R=Refresh[/green]"
         )
+        table.focus()
 
     @on(DataTable.RowSelected)
     async def on_row_action(self, event: DataTable.RowSelected) -> None:
-        table = self.query_one(DataTable)
-        row_index = event.cursor_row
+        # Direkt aus Event lesen - KEIN table.query nötig!
+        snippet_id = int(event.row_key.value) if event.row_key else None
 
-        # ID extrahieren
-        id_coord = Coordinate(row=row_index, column=0)
-        snippet_id = int(table.get_cell_at(id_coord))
-
-        # Kontext-Menü mounten
-        from textual.widgets import Button, Static
-
-        menu = Horizontal(
-            Button("⭐ Toggle Favorite", id=f"fav_{snippet_id}"),
-            Button("🗑️ Delete Snippet", id=f"del_{snippet_id}"),
-            Button("✏️ Edit Snippet", id=f"edit_{snippet_id}"),
-            Button("❌ Cancel", id="cancel_action"),
-            id="action_menu",
-        )
-
-        content = self.query_one("#content_area")
-        content.mount(Static(f"Actions for Snippet ID: {snippet_id}", id="menu_title"))
-        content.mount(menu)
-        menu.focus()
-
-    @on(Button.Pressed, "#action_menu Button")
-    async def handle_row_action(self, event: Button.Pressed) -> None:
-        button_id = event.button.id
-
-        # Menu entfernen
-        try:
-            self.query_one("#action_menu", Horizontal).remove()
-            self.query_one("#menu_title").remove()
-        except NoMatches:
-            pass
-
-        # Actions → Auto-Refresh!
-        if button_id.startswith("fav_"):
-            snippet_id = int(button_id.split("_")[1])
-            await self.toggle_favorite(snippet_id)
-
-        elif button_id.startswith("del_"):
-            snippet_id = int(button_id.split("_")[1])
-            await self.delete_selected_snippet(snippet_id)
-
-        elif button_id.startswith("edit_"):
-            snippet_id = int(button_id.split("_")[1])
-            await self.edit_snippet(snippet_id)
-
-        elif button_id == "cancel_action":
-            table = self.query_one(DataTable)
-            table.focus()
+        if snippet_id:
+            with get_session() as session:
+                snippet = session.get(Snippet, snippet_id)
+            if snippet:
+                await self.push_screen(
+                    CodeViewScreen(
+                        snippet.id, snippet.code, snippet.title, snippet.language.value
+                    )
+                )
 
     @on(Button.Pressed, "#delete")
     async def delete_snippet(self) -> None:
