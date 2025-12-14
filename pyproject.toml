@@ -1,6 +1,6 @@
 [project]
 name = "snipster-tui"
-version = "0.3.0"
+version = "0.4.0"
 description = "snipster-tui is a terminal user interface (TUI) application for managing and browsing code snippets."
 readme = "README.md"
 authors = [
