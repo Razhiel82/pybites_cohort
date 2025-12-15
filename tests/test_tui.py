@@ -168,6 +168,7 @@ def test_main_menu(snap_compare):
 
 @pytest.mark.parametrize("engine", ["memory", "file"], indirect=True)
 def test_add_and_list_snippets(engine, repo, example_snippets, tui_config):
+    """Snippets hinzufügen und listen"""
     for snippet in example_snippets:
         repo.add(snippet)
     repo.session.commit()
@@ -185,10 +186,6 @@ def test_list_snippets_ui(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -208,10 +205,6 @@ def test_list_snippets_ui_code_view_py(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -230,10 +223,6 @@ def test_list_snippets_ui_code_view_rust(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -255,10 +244,6 @@ def test_list_snippets_ui_code_view_go(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -279,10 +264,6 @@ def test_list_snippets_ui_code_view_javascript(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -306,10 +287,6 @@ def test_list_snippets_ui_code_view_powershell(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -332,10 +309,6 @@ def test_list_snippets_ui_code_view_bash(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -361,10 +334,6 @@ def test_list_snippets_ui_code_view_sql(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -389,10 +358,6 @@ def test_list_snippets_ui_code_view_other(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -420,10 +385,6 @@ def test_list_snippets_ui_code_view_copy(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -440,15 +401,9 @@ def test_list_snippets_ui_code_view_copy(
 
 
 @pytest.mark.parametrize("engine", ["memory"], indirect=True)
-def test_list_snippets_ui_code_delete(
+def test_list_snippets_ui_delete(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -468,10 +423,6 @@ def test_list_snippets_ui_list_favorite(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -490,10 +441,6 @@ def test_list_snippets_ui_list_edit(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
-
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
 
     def mock_get_session():
         return repo.session
@@ -520,10 +467,6 @@ def test_add_snippet_ui(snap_compare):
 def test_delete_snippet_ui(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -535,7 +478,7 @@ def test_delete_snippet_ui(
         await pilot.press("tab")
         await pilot.press("tab")
         await pilot.press("tab")
-        await pilot.press("1")
+        await pilot.press("5")
         await pilot.press("tab")
         await pilot.press("enter")
         await pilot.pause()
@@ -547,10 +490,6 @@ def test_delete_snippet_ui(
 def test_delete_invalid_snippet_ui(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -573,10 +512,6 @@ def test_delete_invalid_snippet_ui(
 def test_delete_snippet_ui_fields(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -598,10 +533,6 @@ def test_delete_snippet_ui_fields(
 def test_init_snippet_ui_fields(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -621,10 +552,6 @@ def test_init_snippet_ui_fields(
 def test_init_snippet_ui_default(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
