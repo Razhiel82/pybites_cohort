@@ -327,6 +327,10 @@ class Snipster(App):
                 Option("Rust", id="lang_rust"),
                 Option("Golang", id="lang_go"),
                 Option("Javascript", id="lang_java"),
+                Option("Powershell", id="lang_powershell"),
+                Option("Bash", id="lang_bash"),
+                Option("SQL", id="lang_sql"),
+                Option("Other", id="lang_other"),
                 id="language_select",
             ),
             Button("Submit", id="submit"),
@@ -419,7 +423,7 @@ class Snipster(App):
 
         status = self.query_one("#status", Static)
         status.update(
-            "↑↓=Nav, Enter=Action-Menu, [yellow]F=Fav[/], [red]D=Del[/], [orange]E=Edit[/], [green]Ctrl+R=Refresh[/]"
+            "↑↓=Nav, Enter=Show Code, [yellow]F=Favorite[/], [red]D=Delete[/], [orange]E=Edit[/], [green]Ctrl+R=Refresh[/]"
         )
 
     @on(DataTable.RowSelected)
