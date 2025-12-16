@@ -44,6 +44,12 @@ ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
 
 ## Version History
 
+* v0.4.0
+  * changes the tui:
+    * Added Bindungs for favorit, edit and delete
+    * It opens modal now
+    * lot of debugging since the functions changed a lot
+
 * v0.3.0
   * added snippet edit-feature
   * added testing
@@ -52,6 +58,10 @@ ex. [LinkedIn](https://www.linkedin.com/in/frederick-ming-b8b517197/)
 
   * Initial alpha release
   * Basic Usage adding and deleting for snippets
+
+## Disclaimr
+
+This is a personal project run at own risk! The DB is still subject to change.
 
 ## License
 

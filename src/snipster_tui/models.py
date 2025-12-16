@@ -16,6 +16,10 @@ class Language(str, Enum):
     javascript = "js"
     rust = "rs"
     golang = "go"
+    powershell = "ps"
+    bash = "sh"
+    sql = "sql"
+    other = "ot"
 
 
 class Snippet(SQLModel, table=True):

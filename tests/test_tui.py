@@ -106,8 +106,8 @@ def example_snippets():
     return [
         Snippet(
             title="Hello python",
-            code="print('Hello, World! 1')",
-            description="A simple hello world snippet",
+            code="def main():\n    print('Hello, World!')",
+            description="A simple Python hello world snippet",
             language=Language.python,
         ),
         Snippet(
@@ -121,6 +121,36 @@ def example_snippets():
             code='package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello World!")\n}',
             description="A simple Go hello world snippet",
             language=Language.golang,
+        ),
+        Snippet(
+            title="Hello World of Java",
+            code='function main() {\n\tconsole.log("Hello, World!");\n}',
+            description="A simple Java hello world snippet",
+            language=Language.javascript,
+        ),
+        Snippet(
+            title="Hello World of PowerShell",
+            code='Write-Output "Hello, World!"',
+            description="A simple PowerShell hello world snippet",
+            language=Language.powershell,
+        ),
+        Snippet(
+            title="Hello World of Bash",
+            code='echo "Hello, World!"',
+            description="A simple Bash hello world snippet",
+            language=Language.bash,
+        ),
+        Snippet(
+            title="Hello World of SQL",
+            code='SELECT * FROM snippets WHERE title = "Hello World";',
+            description="A simple SQL hello world snippet",
+            language=Language.sql,
+        ),
+        Snippet(
+            title="Hello World of Other",
+            code='cout << "Hello, World!" << endl;',
+            description="A simple hello world snippet in some other language",
+            language=Language.other,
         ),
         Snippet(
             title="Favorite Snippet",
@@ -138,6 +168,7 @@ def test_main_menu(snap_compare):
 
 @pytest.mark.parametrize("engine", ["memory", "file"], indirect=True)
 def test_add_and_list_snippets(engine, repo, example_snippets, tui_config):
+    """Snippets hinzufügen und listen"""
     for snippet in example_snippets:
         repo.add(snippet)
     repo.session.commit()
@@ -156,9 +187,23 @@ def test_list_snippets_ui(
 ):
     """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_py(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
 
     def mock_get_session():
         return repo.session
@@ -167,6 +212,244 @@ def test_list_snippets_ui(
         monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
         await pilot.press("tab")
         await pilot.press("enter")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_rust(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_go(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_javascript(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_powershell(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_bash(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_sql(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_other(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_code_view_copy(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("enter")
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_delete(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("d")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_list_favorite(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("f")
+        await pilot.pause()
+
+    assert snap_compare(Snipster(), run_before=click_list)
+
+
+@pytest.mark.parametrize("engine", ["memory"], indirect=True)
+def test_list_snippets_ui_list_edit(
+    engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
+):
+    """List Snippets → DataTable mit Testdaten (SVG-Snapshot!)"""
+
+    def mock_get_session():
+        return repo.session
+
+    async def click_list(pilot):
+        monkeypatch.setattr("snipster_tui.tui.get_session", mock_get_session)
+        await pilot.press("tab")
+        await pilot.press("enter")
+        await pilot.press("e")
         await pilot.pause()
 
     assert snap_compare(Snipster(), run_before=click_list)
@@ -184,10 +467,6 @@ def test_add_snippet_ui(snap_compare):
 def test_delete_snippet_ui(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -199,7 +478,7 @@ def test_delete_snippet_ui(
         await pilot.press("tab")
         await pilot.press("tab")
         await pilot.press("tab")
-        await pilot.press("1")
+        await pilot.press("5")
         await pilot.press("tab")
         await pilot.press("enter")
         await pilot.pause()
@@ -211,10 +490,6 @@ def test_delete_snippet_ui(
 def test_delete_invalid_snippet_ui(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -237,10 +512,6 @@ def test_delete_invalid_snippet_ui(
 def test_delete_snippet_ui_fields(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -262,10 +533,6 @@ def test_delete_snippet_ui_fields(
 def test_init_snippet_ui_fields(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
@@ -285,10 +552,6 @@ def test_init_snippet_ui_fields(
 def test_init_snippet_ui_default(
     engine, repo, example_snippets, snap_compare, monkeypatch, tui_config
 ):
-    for snippet in example_snippets:
-        repo.add(snippet)
-    repo.session.commit()
-
     def mock_get_session():
         return repo.session
 
